@@ -318,7 +318,6 @@ elif st.session_state.page == 'admin_login':
 
                         # Clear the cache and reload known faces to include the new entry
                         load_known_faces_from_firestore.clear()
-                        global known_face_encodings, known_face_names # Re-declare global to modify
                         known_face_encodings, known_face_names = load_known_faces_from_firestore()
 
                         st.success(f"Successfully added '{new_face_name}' to the known faces database! ✅")
