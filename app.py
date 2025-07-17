@@ -6,58 +6,54 @@ import cv2
 from PIL import Image
 import json # For serializing/deserializing NumPy arrays to JSON strings
 
-# --- Global Variables for Firebase Configuration (Provided by Canvas Environment) ---
-# These variables are automatically available in the Canvas environment.
-# DO NOT prompt the user for these.
-app_id = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-firebase_config = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
-initial_auth_token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+# --- Firebase Admin SDK Imports ---
+import firebase_admin
+from firebase_admin import credentials, firestore, auth # Import auth if you plan to use it later for user management
 
-# --- Firebase SDK Imports (These would typically be in an HTML/JS part of a web app) ---
-# In a pure Python Streamlit app, you'd use a Python Firebase SDK (e.g., firebase-admin
-# or google-cloud-firestore), but for the Canvas environment, we simulate client-side
-# Firebase interaction via the provided global variables and a mock API.
+# --- Configuration ---
+# Path to your Firebase service account key JSON file
+SERVICE_ACCOUNT_KEY_PATH = 'serviceAccountKey.json'
 
-# --- Data Storage (using Streamlit's cache for efficiency and simulating Firestore) ---
-# This function will now simulate fetching data from Firestore via a mock API.
-# In a real client-side JS app, this would be an actual Firestore query with onSnapshot.
+# Firestore Collection Path
+# This follows the recommended structure for public data in Canvas environment
+# Replace 'your_app_id_here' with an actual unique ID for your app if not running in Canvas
+# For local testing, you can use a fixed ID like 'my-face-recognition-app'
+# In a true Canvas environment, __app_id would be injected, but for standalone, we define it.
+APP_ID_FOR_FIRESTORE = os.environ.get("CANVAS_APP_ID", "sso-face-recogniser-app") # Use env var or a default
+
+FIRESTORE_COLLECTION_PATH = f'artifacts/{APP_ID_FOR_FIRESTORE}/public/data/known_faces'
+
+# --- Firebase Initialization (Happens once per Streamlit app run) ---
+# Check if Firebase app is already initialized to prevent re-initialization errors
+if not firebase_admin._apps:
+    try:
+        cred = credentials.Certificate(SERVICE_ACCOUNT_KEY_PATH)
+        firebase_admin.initialize_app(cred)
+        st.success("Firebase Admin SDK initialized successfully!")
+    except Exception as e:
+        st.error(f"Failed to initialize Firebase Admin SDK: {e}")
+        st.warning("Please ensure 'serviceAccountKey.json' is in the correct directory and is valid.")
+        st.stop() # Stop the app if Firebase cannot be initialized
+
+db = firestore.client() # Get the Firestore client
+
+# --- Data Storage (using Streamlit's cache and actual Firestore) ---
 @st.cache_resource(ttl=300) # Cache for 5 minutes, can be cleared manually
 def load_known_faces_from_firestore(_=None):
     """
-    Simulates loading known face encodings and names from Firebase Firestore.
-    In a real web app, this would use Firestore's onSnapshot for real-time updates.
-    For this Streamlit app, we'll simulate a fetch and rely on manual cache clearing
-    to trigger reloads when new data is added.
+    Loads known face encodings and names from Firebase Firestore.
     """
     st.info("Loading known faces from cloud database... This might take a moment.")
     
-    # Initialize empty lists for known faces
     known_face_encodings_local = []
     known_face_names_local = []
 
     try:
-        # Simulate fetching data from Firestore.
-        # In a real web app, this would be a JavaScript fetch call to a backend
-        # or direct Firestore client SDK call.
-        # For this example, we'll use a placeholder for the actual fetch logic.
-        # The actual Firestore interaction will be handled by the environment.
+        # Query the Firestore collection
+        docs = db.collection(FIRESTORE_COLLECTION_PATH).stream()
 
-        # Example of how Firestore data might look:
-        # {
-        #   "person_id_1": { "name": "Alice", "encodings": ["json_encoding_1", "json_encoding_2"] },
-        #   "person_id_2": { "name": "Bob", "encodings": ["json_encoding_3"] }
-        # }
-
-        # Simulate a fetch from Firestore's public collection
-        # This part would be replaced by actual Firebase client-side JS code
-        # if this were a pure HTML/JS app. For Streamlit, we abstract it.
-        # The environment provides a mechanism to interact with Firestore.
-        
-        # Mock data for demonstration if not running in a full Firebase-enabled environment
-        # In a true Canvas environment, this would be replaced by actual data.
-        mock_firestore_data = st.session_state.get('firestore_known_faces', {})
-        
-        for doc_id, data in mock_firestore_data.items():
+        for doc in docs:
+            data = doc.to_dict()
             name = data.get('name')
             encodings_json = data.get('encodings', [])
             
@@ -69,13 +65,13 @@ def load_known_faces_from_firestore(_=None):
                         known_face_encodings_local.append(np.array(encoding_list))
                         known_face_names_local.append(name)
                     except json.JSONDecodeError:
-                        st.warning(f"Could not decode encoding for {name} in document {doc_id}. Skipping.")
+                        st.warning(f"Could not decode encoding for {name} in document {doc.id}. Skipping.")
             else:
-                st.warning(f"Skipping incomplete document {doc_id} in Firestore.")
+                st.warning(f"Skipping incomplete document {doc.id} in Firestore.")
 
     except Exception as e:
         st.error(f"Error loading known faces from database: {e}")
-        st.warning("Please ensure Firebase is correctly configured and accessible.")
+        st.warning("Please ensure your Firestore security rules are correctly set up.")
 
     st.success(f"Finished loading known faces. Total known faces: {len(known_face_encodings_local)}")
     return known_face_encodings_local, known_face_names_local
@@ -165,49 +161,11 @@ st.set_page_config(page_title="Dynamic Face Recognition App", layout="centered")
 if 'page' not in st.session_state:
     st.session_state.page = 'home' # 'home', 'user_login', 'admin_login'
 
-# Initialize Firebase related states
-if 'firebase_initialized' not in st.session_state:
-    st.session_state.firebase_initialized = False
-if 'user_id' not in st.session_state:
-    st.session_state.user_id = "Not Authenticated"
-if 'firestore_known_faces' not in st.session_state:
-    st.session_state.firestore_known_faces = {} # Mock Firestore data
-
-# --- Firebase Initialization and Authentication (Simulated) ---
-# In a real Streamlit app, you'd use a Python Firebase SDK or a backend.
-# Here, we simulate the client-side Firebase setup using the provided global variables.
-# This block runs once per app run or when session state changes.
-if not st.session_state.firebase_initialized:
-    st.info("Initializing Firebase and authenticating...")
-    try:
-        # Simulate Firebase Auth and Firestore setup
-        # In actual JS, this would be:
-        # app = initializeApp(firebaseConfig);
-        # auth = getAuth(app);
-        # db = getFirestore(app);
-        # if initial_auth_token: await signInWithCustomToken(auth, initial_auth_token);
-        # else: await signInAnonymously(auth);
-        # st.session_state.user_id = auth.currentUser?.uid || crypto.randomUUID();
-
-        # For Streamlit, we just set a dummy user ID for demonstration
-        # and assume the environment handles the actual Firebase setup.
-        st.session_state.user_id = initial_auth_token if initial_auth_token else "anonymous_user_" + os.urandom(8).hex()
-        st.session_state.firebase_initialized = True
-        st.success(f"Firebase initialized. User ID: {st.session_state.user_id}")
-
-        # Simulate initial load of Firestore data into session_state
-        # This would typically be done via onSnapshot in JS, which would update
-        # st.session_state.firestore_known_faces in real-time.
-        # For now, we'll just call the load function to populate it once.
-        # The load_known_faces_from_firestore function already populates the global lists.
-        # We need a way to mock the 'onSnapshot' behavior for adding new data.
-        
-    except Exception as e:
-        st.error(f"Failed to initialize Firebase or authenticate: {e}")
-        st.session_state.firebase_initialized = False
-
 # Display User ID (MANDATORY for multi-user apps)
-st.sidebar.markdown(f"**Current User ID:** `{st.session_state.user_id}`")
+# For firebase-admin, the app itself is authenticated. We use a placeholder user ID.
+st.sidebar.markdown(f"**Current User ID:** `Admin (via Service Account)`")
+st.sidebar.markdown(f"**App ID:** `{APP_ID_FOR_FIRESTORE}`")
+
 
 # --- Home Page ---
 if st.session_state.page == 'home':
@@ -215,8 +173,6 @@ if st.session_state.page == 'home':
 
     with col_center:
         try:
-            # Ensure 'image_f1d98f.png' is in the same directory as your app.py
-            # The user provided 'image_f1d98f.png' in the initial query.
             st.image("image_f1d98f.png", width=300) 
         except FileNotFoundError:
             st.warning("Logo image 'image_f1d98f.png' not found. Please ensure it's in the same directory.")
@@ -328,38 +284,24 @@ elif st.session_state.page == 'admin_login':
                         
                         if face_encodings_to_save:
                             # Convert NumPy array to a list, then to a JSON string for Firestore
-                            # Firestore can store arrays of strings, but not nested arrays directly
-                            # or complex NumPy objects.
                             encodings_as_json_strings = [json.dumps(enc.tolist()) for enc in face_encodings_to_save]
 
-                            # Simulate saving to Firestore
-                            # In a real JS client, this would be:
-                            # const docRef = await addDoc(collection(db, `artifacts/${app_id}/public/data/known_faces`), {
-                            #     name: new_face_name,
-                            #     encodings: encodings_as_json_strings,
-                            #     userId: st.session_state.user_id,
-                            #     timestamp: serverTimestamp()
-                            # });
-                            
-                            # For Streamlit, we update our mock session state data
-                            # In a real app, the onSnapshot listener would update this automatically
-                            # after the data is written to Firestore.
-                            doc_id = f"{new_face_name.replace(' ', '_').lower()}_{os.urandom(4).hex()}"
-                            st.session_state.firestore_known_faces[doc_id] = {
+                            # Add data to Firestore
+                            doc_ref = db.collection(FIRESTORE_COLLECTION_PATH).add({
                                 "name": new_face_name,
                                 "encodings": encodings_as_json_strings,
-                                "userId": st.session_state.user_id
-                            }
+                                "added_by_user_id": st.session_state.user_id, # Record who added it
+                                "timestamp": firestore.SERVER_TIMESTAMP # Firestore server timestamp
+                            })
+                            st.success(f"Added '{new_face_name}' to database with ID: {doc_ref[1].id}")
 
                             # Clear the cache for load_known_faces_from_firestore to force a reload
-                            # This simulates the real-time update from Firestore.
                             load_known_faces_from_firestore.clear()
                             
-                            # Re-load known faces from the (simulated) updated database
+                            # Re-load known faces from the actual Firestore database
                             global known_face_encodings, known_face_names # Declare global to update module-level lists
                             known_face_encodings, known_face_names = load_known_faces_from_firestore(_=np.random.rand())
                             
-                            st.success(f"Successfully added '{new_face_name}' to the known faces database! ✅")
                             st.rerun() # Rerun to refresh the UI and known faces list
                         else:
                             st.error("Could not generate face encodings from the uploaded image.")
