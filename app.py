@@ -435,7 +435,7 @@ def admin_login_page():
                                             logging.info(f"Deleted Firestore document: {doc_to_delete.id}")
                                         
                                         load_known_faces_from_firestore.clear()
-                                        global known_face_encodings, known_face_names # Re-declare global for re-assignment
+                                        
                                         known_face_encodings, known_face_names = load_known_faces_from_firestore()
                                         
                                         st.success(f"Successfully deleted {deleted_count} entries for '{name}'. ✅")
