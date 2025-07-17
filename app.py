@@ -45,11 +45,6 @@ if not firebase_admin._apps:
 
 db = firestore.client() # Get the Firestore client
 
-# --- Global Variables at Module Level ---
-# These are the actual lists that will hold the face data.
-known_face_encodings = []
-known_face_names = []
-
 # --- Data Loading Function (using Streamlit's cache and actual Firestore) ---
 @st.cache_resource(ttl=300) # Cache for 5 minutes, can be cleared manually
 def _load_and_populate_globals_from_firestore(_=None):
@@ -61,11 +56,10 @@ def _load_and_populate_globals_from_firestore(_=None):
     st.info("Loading known faces from cloud database... This might take a moment.")
     
     # Use the global keyword to modify the module-level variables
-    global known_face_encodings, known_face_names 
+    global known_face_encodings, known_face_names
 
-    # Clear existing data before loading new data
-    known_face_encodings.clear()
-    known_face_names.clear()
+    known_face_encodings = []
+    known_face_names = []
 
     try:
         docs = db.collection(FIRESTORE_COLLECTION_PATH).stream()
