@@ -9,29 +9,6 @@ from firebase_admin import credentials, storage
 import json
 import tempfile # For creating temporary files
 
-# --- Firebase Configuration (Store securely using Streamlit Secrets) ---
-# It is HIGHLY RECOMMENDED to use Streamlit Secrets for production deployment.
-# Create a .streamlit/secrets.toml file with your Firebase service account JSON
-# and storage bucket name.
-# Example secrets.toml:
-# [secrets]
-# FIREBASE_CONFIG = """
-# {
-#   "type": "service_account",
-#   "project_id": "face-recogniser-app",
-#   "private_key_id": "YOUR_PRIVATE_KEY_ID",
-#   "private_key": "-----BEGIN PRIVATE KEY-----\nYOUR_PRIVATE_KEY\n-----END PRIVATE KEY-----\n",
-#   "client_email": "YOUR_CLIENT_EMAIL",
-#   "client_id": "YOUR_CLIENT_ID",
-#   "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-#   "token_uri": "https://oauth2.googleapis.com/token",
-#   "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-#   "client_x509_cert_url": "YOUR_CLIENT_X509_CERT_URL",
-#   "universe_domain": "googleapis.com"
-# }
-# """
-# FIREBASE_STORAGE_BUCKET = "face-recogniser-app.appspot.com" # Your project ID .appspot.com
-
 try:
     FIREBASE_CREDENTIALS_JSON = st.secrets["FIREBASE_CONFIG"]
     FIREBASE_STORAGE_BUCKET = st.secrets["FIREBASE_STORAGE_BUCKET"]
