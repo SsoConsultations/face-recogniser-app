@@ -1,5 +1,3 @@
-# app.py
-
 import streamlit as st
 import face_recognition
 import os
@@ -390,7 +388,7 @@ elif st.session_state.page == 'admin_login':
 
                         # Re-load known faces from Firebase; this will update the global lists
                         # The '_=np.random.rand()' is a trick to force cache invalidation for st.cache_resource
-                        global known_face_encodings, known_face_names
+                        # Removed 'global' keyword here as it's not needed for re-assignment of global variables
                         known_face_encodings, known_face_names = load_known_faces_from_firebase(_=np.random.rand())
 
                         st.success(f"Successfully added '{new_face_name}' to the known faces database on Firebase! ✅")
