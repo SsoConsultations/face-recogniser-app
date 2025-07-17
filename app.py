@@ -4,52 +4,70 @@ import os
 import numpy as np
 import cv2
 from PIL import Image
-import json # For serializing/deserializing NumPy arrays to JSON strings
+import json
 
 # --- Firebase Admin SDK Imports ---
 import firebase_admin
-from firebase_admin import credentials, firestore, auth # Import auth if you plan to use it later for user management
+from firebase_admin import credentials, firestore
 
 # --- Configuration ---
 # Path to your Firebase service account key JSON file
+# For deployment, ensure this is handled via Streamlit secrets
+# For local testing, you might still need the file present if not using secrets.toml
 SERVICE_ACCOUNT_KEY_PATH = 'serviceAccountKey.json'
 
 # Firestore Collection Path
-# This follows the recommended structure for public data in Canvas environment
-# Replace 'your_app_id_here' with an actual unique ID for your app if not running in Canvas
-# For local testing, you can use a fixed ID like 'my-face-recognition-app'
-# In a true Canvas environment, __app_id would be injected, but for standalone, we define it.
-APP_ID_FOR_FIRESTORE = os.environ.get("CANVAS_APP_ID", "sso-face-recogniser-app") # Use env var or a default
-
+APP_ID_FOR_FIRESTORE = os.environ.get("CANVAS_APP_ID", "sso-face-recogniser-app") 
 FIRESTORE_COLLECTION_PATH = f'artifacts/{APP_ID_FOR_FIRESTORE}/public/data/known_faces'
 
 # --- Firebase Initialization (Happens once per Streamlit app run) ---
-# Check if Firebase app is already initialized to prevent re-initialization errors
 if not firebase_admin._apps:
     try:
-        cred = credentials.Certificate(SERVICE_ACCOUNT_KEY_PATH)
+        # Load service account key from Streamlit secrets or local file
+        if "FIREBASE_SERVICE_ACCOUNT_KEY" in st.secrets:
+            service_account_info = json.loads(st.secrets["FIREBASE_SERVICE_ACCOUNT_KEY"])
+            cred = credentials.Certificate(service_account_info)
+        else:
+            # Fallback for local testing if secrets are not configured
+            # In production, relying on this fallback is not secure.
+            if os.path.exists(SERVICE_ACCOUNT_KEY_PATH):
+                cred = credentials.Certificate(SERVICE_ACCOUNT_KEY_PATH)
+            else:
+                st.error("Firebase service account key not found. Please add 'FIREBASE_SERVICE_ACCOUNT_KEY' to Streamlit secrets or ensure 'serviceAccountKey.json' is in the app directory.")
+                st.stop() # Stop the app if no credentials
+        
         firebase_admin.initialize_app(cred)
         st.success("Firebase Admin SDK initialized successfully!")
     except Exception as e:
         st.error(f"Failed to initialize Firebase Admin SDK: {e}")
-        st.warning("Please ensure 'serviceAccountKey.json' is in the correct directory and is valid.")
+        st.warning("Please ensure your Firebase service account key is valid and correctly configured.")
         st.stop() # Stop the app if Firebase cannot be initialized
 
 db = firestore.client() # Get the Firestore client
 
-# --- Data Storage (using Streamlit's cache and actual Firestore) ---
+# --- Global Variables at Module Level ---
+# These are the actual lists that will hold the face data.
+known_face_encodings = []
+known_face_names = []
+
+# --- Data Loading Function (using Streamlit's cache and actual Firestore) ---
 @st.cache_resource(ttl=300) # Cache for 5 minutes, can be cleared manually
-def load_known_faces_from_firestore(_=None):
+def _load_and_populate_globals_from_firestore(_=None):
     """
-    Loads known face encodings and names from Firebase Firestore.
+    Loads known face encodings and names from Firebase Firestore
+    and populates the module-level global variables.
+    This function is designed to be called once or when cache is cleared.
     """
     st.info("Loading known faces from cloud database... This might take a moment.")
     
-    known_face_encodings_local = []
-    known_face_names_local = []
+    # Use the global keyword to modify the module-level variables
+    global known_face_encodings, known_face_names 
+
+    # Clear existing data before loading new data
+    known_face_encodings.clear()
+    known_face_names.clear()
 
     try:
-        # Query the Firestore collection
         docs = db.collection(FIRESTORE_COLLECTION_PATH).stream()
 
         for doc in docs:
@@ -60,10 +78,9 @@ def load_known_faces_from_firestore(_=None):
             if name and encodings_json:
                 for enc_json in encodings_json:
                     try:
-                        # Convert JSON string back to NumPy array
                         encoding_list = json.loads(enc_json)
-                        known_face_encodings_local.append(np.array(encoding_list))
-                        known_face_names_local.append(name)
+                        known_face_encodings.append(np.array(encoding_list))
+                        known_face_names.append(name)
                     except json.JSONDecodeError:
                         st.warning(f"Could not decode encoding for {name} in document {doc.id}. Skipping.")
             else:
@@ -73,16 +90,14 @@ def load_known_faces_from_firestore(_=None):
         st.error(f"Error loading known faces from database: {e}")
         st.warning("Please ensure your Firestore security rules are correctly set up.")
 
-    st.success(f"Finished loading known faces. Total known faces: {len(known_face_encodings_local)}")
-    return known_face_encodings_local, known_face_names_local
+    st.success(f"Finished loading known faces. Total known faces: {len(known_face_encodings)}")
+    # This function doesn't need to return anything if it's directly populating globals.
+    # However, for @st.cache_resource to work well, it's often better to return the data
+    # and then assign it to globals outside the function. Let's stick to returning.
+    return known_face_encodings, known_face_names
 
-# Initialize global variables at module level
-# These will be populated by the cached function
-known_face_encodings = []
-known_face_names = []
-
-# Load faces once when the app starts or is re-run due to cache invalidation
-known_face_encodings, known_face_names = load_known_faces_from_firestore()
+# Initial load of faces when the app starts
+known_face_encodings, known_face_names = _load_and_populate_globals_from_firestore()
 
 # --- Function to process an image and draw boxes (reusable) ---
 def process_frame_for_faces(frame_rgb, known_encodings, known_names):
@@ -94,20 +109,19 @@ def process_frame_for_faces(frame_rgb, known_encodings, known_names):
     frame_bgr = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2BGR)
 
     if not face_locations:
-        return frame_bgr # Return original frame if no faces found
+        return frame_bgr 
 
     for (top, right, bottom, left), face_encoding in zip(face_locations, face_encodings):
         name = "Unknown"
 
-        if known_encodings: # Only compare if there are known faces
+        if known_encodings: 
             matches = face_recognition.compare_faces(known_encodings, face_encoding)
             face_distances = face_recognition.face_distance(known_encodings, face_encoding)
             best_match_index = np.argmin(face_distances)
             if matches[best_match_index]:
                 name = known_names[best_match_index]
             else:
-                # Optional: If no exact match, consider the closest match if within a threshold
-                if len(face_distances) > 0 and face_distances[best_match_index] < 0.6: # Adjust threshold as needed
+                if len(face_distances) > 0 and face_distances[best_match_index] < 0.6: 
                     name = known_names[best_match_index]
 
         # Drawing rectangles and labels
@@ -132,18 +146,17 @@ def process_frame_for_faces(frame_rgb, known_encodings, known_names):
         label_top = bottom_ext
         label_bottom = label_top + label_height
         label_left = left_ext
-        label_right = max(right_ext, left_ext + label_width) # Ensure label is at least as wide as box
+        label_right = max(right_ext, left_ext + label_width) 
 
-        # Adjust label position if it goes out of bounds
         if label_bottom > frame_bgr.shape[0]:
             label_bottom = frame_bgr.shape[0]
             label_top = label_bottom - label_height
-            if label_top < 0: # If still goes above, set to 0
+            if label_top < 0: 
                 label_top = 0
 
         if label_right > frame_bgr.shape[1]:
             label_right = frame_bgr.shape[1]
-            label_left = max(0, label_right - label_width) # Ensure label is not out of bounds left
+            label_left = max(0, label_right - label_width) 
 
         cv2.rectangle(frame_bgr, (label_left, label_top), (label_right, label_bottom), (0, 255, 0), cv2.FILLED)
 
@@ -159,10 +172,9 @@ st.set_page_config(page_title="Dynamic Face Recognition App", layout="centered")
 
 # Initialize session state for page navigation
 if 'page' not in st.session_state:
-    st.session_state.page = 'home' # 'home', 'user_login', 'admin_login'
+    st.session_state.page = 'home' 
 
 # Display User ID (MANDATORY for multi-user apps)
-# For firebase-admin, the app itself is authenticated. We use a placeholder user ID.
 st.sidebar.markdown(f"**Current User ID:** `Admin (via Service Account)`")
 st.sidebar.markdown(f"**App ID:** `{APP_ID_FOR_FIRESTORE}`")
 
@@ -290,19 +302,20 @@ elif st.session_state.page == 'admin_login':
                             doc_ref = db.collection(FIRESTORE_COLLECTION_PATH).add({
                                 "name": new_face_name,
                                 "encodings": encodings_as_json_strings,
-                                "added_by_user_id": st.session_state.user_id, # Record who added it
-                                "timestamp": firestore.SERVER_TIMESTAMP # Firestore server timestamp
+                                "added_by_user_id": "Admin", # Placeholder as service account is used
+                                "timestamp": firestore.SERVER_TIMESTAMP 
                             })
                             st.success(f"Added '{new_face_name}' to database with ID: {doc_ref[1].id}")
 
-                            # Clear the cache for load_known_faces_from_firestore to force a reload
-                            load_known_faces_from_firestore.clear()
+                            # Clear the cache for _load_and_populate_globals_from_firestore to force a reload
+                            _load_and_populate_globals_from_firestore.clear()
                             
                             # Re-load known faces from the actual Firestore database
-                            global known_face_encodings, known_face_names # Declare global to update module-level lists
-                            known_face_encodings, known_face_names = load_known_faces_from_firestore(_=np.random.rand())
+                            # The _load_and_populate_globals_from_firestore function already handles
+                            # populating the global variables directly.
+                            _load_and_populate_globals_from_firestore(_=np.random.rand())
                             
-                            st.rerun() # Rerun to refresh the UI and known faces list
+                            st.rerun() 
                         else:
                             st.error("Could not generate face encodings from the uploaded image.")
                     else:
@@ -325,7 +338,7 @@ elif st.session_state.page == 'admin_login':
 
 
     else:
-        if admin_password: # Only show error if user actually typed something
+        if admin_password: 
             st.error("Incorrect password.")
 
     if st.button("⬅ Back to Home", key="admin_back_btn"):
