@@ -6,10 +6,8 @@ import cv2
 from PIL import Image
 import firebase_admin
 from firebase_admin import credentials, firestore, storage
-from firebase_admin import exceptions as firebase_exceptions # Import Firebase exceptions
 import io
 import json # Required for parsing the service account JSON string
-import uuid # For generating unique IDs for images
 
 # --- Firebase Initialization (Global, using st.session_state for persistence) ---
 # Use st.session_state to store Firebase client objects (db and bucket)
@@ -42,6 +40,10 @@ if 'db' not in st.session_state or 'bucket' not in st.session_state:
 FIRESTORE_COLLECTION_NAME = st.secrets["firebase"]["firestore_collection"]
 STORAGE_KNOWN_FACES_FOLDER = "known_faces_images"
 
+# --- Debugging line to display the bucket name being used ---
+st.sidebar.info(f"App is attempting to use Storage Bucket: **`{st.secrets['firebase']['storage_bucket']}`**")
+
+
 # --- Data Loading Function (Cached for performance) ---
 # This function now directly accesses st.session_state.db,
 # so the unhashable db_client is not passed as an argument.
@@ -49,31 +51,27 @@ STORAGE_KNOWN_FACES_FOLDER = "known_faces_images"
 def load_known_faces_from_firebase(_=None): 
     st.info("Loading known faces from Firebase... This might take a moment.")
     
-    all_known_face_encodings = []
-    all_known_face_names = []
+    known_face_encodings_local = []
+    known_face_names_local = []
 
     try:
-        # Fetch all documents from the specified Firestore collection (each document is a person).
-        person_docs = st.session_state.db.collection(FIRESTORE_COLLECTION_NAME).stream()
-        
-        for doc in person_docs:
-            person_data = doc.to_dict()
-            person_name = person_data.get("name")
-            person_images = person_data.get("images", []) # Get the list of images for this person
-
-            if person_name and person_images:
-                for img_entry in person_images:
-                    encoding_list = img_entry.get("encoding")
-                    if encoding_list:
-                        all_known_face_encodings.append(np.array(encoding_list))
-                        all_known_face_names.append(person_name)
-                    else:
-                        st.warning(f"Skipping malformed image entry for '{person_name}' in Firestore document {doc.id}. Missing encoding.")
+        # Fetch all documents from the specified Firestore collection.
+        # Each document is assumed to be a single face entry.
+        docs = st.session_state.db.collection(FIRESTORE_COLLECTION_NAME).stream()
+        for doc in docs:
+            face_data = doc.to_dict()
+            name = face_data.get("name")
+            encoding_list = face_data.get("encoding") # Encoding is stored as a Python list of floats
+            
+            # Validate data and append to local lists.
+            if name and encoding_list:
+                known_face_encodings_local.append(np.array(encoding_list)) # Convert list back to NumPy array
+                known_face_names_local.append(name)
             else:
-                st.warning(f"Skipping malformed person data in Firestore document {doc.id}. Missing name or images.")
+                st.warning(f"Skipping malformed face data in Firestore document {doc.id}. Missing name or encoding.")
         
-        st.success(f"Finished loading known faces. Total encodings loaded: {len(all_known_face_encodings)}")
-        return all_known_face_encodings, all_known_face_names
+        st.success(f"Finished loading known faces. Total known faces: {len(known_face_encodings_local)}")
+        return known_face_encodings_local, known_face_names_local
 
     except Exception as e:
         # Handle errors during data loading (e.g., network issues, permission errors).
@@ -92,8 +90,8 @@ def process_frame_for_faces(frame_rgb, known_encodings, known_names):
     
     Args:
         frame_rgb (numpy.array): The input image frame in RGB format.
-        known_encodings (list): List of all known face encodings from all persons.
-        known_names (list): List of names corresponding to each known encoding.
+        known_encodings (list): List of known face encodings.
+        known_names (list): List of names corresponding to known encodings.
         
     Returns:
         numpy.array: The image frame with detected faces, boxes, and labels drawn.
@@ -278,7 +276,7 @@ elif st.session_state.page == 'user_login':
         st.session_state.page = 'home'
         st.rerun()
 
-# --- Admin Login Page ---
+# --- Admin Login Page (Original Version) ---
 elif st.session_state.page == 'admin_login':
     st.title("Admin Panel 🔒")
     st.markdown("This section is for **administrators** only.")
@@ -289,140 +287,82 @@ elif st.session_state.page == 'admin_login':
     if admin_password_input == admin_password_from_secrets:
         st.success("Welcome, Admin! 🎉")
 
-        st.subheader("Add New Person to Database ➕")
-        st.markdown("Upload one or more pictures of a person and provide their details.")
+        st.subheader("Add New Face to Database ➕")
+        st.markdown("Upload an image of a person and provide a name for recognition.")
 
-        new_person_name = st.text_input("Enter Person's Name:", key="new_person_name_input")
-        new_person_age = st.number_input("Enter Person's Age (optional):", min_value=0, max_value=150, value=None, format="%d", key="new_person_age_input")
-        new_person_height = st.number_input("Enter Person's Height in cm (optional):", min_value=0, max_value=300, value=None, format="%d", key="new_person_height_input")
+        new_face_name = st.text_input("Enter Name/Description for the Face:", key="new_face_name_input")
+        # Removed age and height inputs
         
-        new_person_images = st.file_uploader("Upload One or More Images of the Person:", 
+        new_face_image = st.file_uploader("Upload Image of New Face:", 
                                              type=["jpg", "jpeg", "png"], 
-                                             accept_multiple_files=True, 
-                                             key="new_person_images_uploader")
+                                             key="new_face_image_uploader") # Removed accept_multiple_files=True
 
-        if st.button("Add/Update Person in Database", key="add_person_btn"):
-            if new_person_name and new_person_images:
-                with st.spinner(f"Processing '{new_person_name}' and uploading images to Firebase..."):
+        if st.button("Add Face to Database", key="add_face_btn"):
+            if new_face_name and new_face_image:
+                with st.spinner(f"Adding '{new_face_name}' to Firebase..."):
                     try:
-                        person_ref = st.session_state.db.collection(FIRESTORE_COLLECTION_NAME).where("name", "==", new_person_name).limit(1).get()
-                        person_doc = None
-                        person_doc_id = None
+                        # 1. Process the uploaded image to get face encodings.
+                        img = Image.open(new_face_image).convert("RGB")
+                        img_array = np.array(img)
                         
-                        if person_ref:
-                            for doc in person_ref: # Iterate to get the single document
-                                person_doc = doc
-                                person_doc_id = doc.id
-                                break # Found the existing document
+                        face_locations = face_recognition.face_locations(img_array)
+                        face_encodings = face_recognition.face_encodings(img_array, face_locations)
 
-                        new_image_entries = []
-                        faces_found_count = 0
-
-                        for uploaded_file in new_person_images:
-                            img = Image.open(uploaded_file).convert("RGB")
-                            img_array = np.array(img)
+                        if face_encodings:
+                            # 2. Upload the image to Firebase Cloud Storage.
+                            # Create a unique filename to avoid collisions.
+                            unique_filename = f"{new_face_name.replace(' ', '_').lower()}_{os.urandom(4).hex()}.jpg"
+                            storage_path = f"{STORAGE_KNOWN_FACES_FOLDER}/{unique_filename}"
                             
-                            face_locations = face_recognition.face_locations(img_array)
-                            face_encodings = face_recognition.face_encodings(img_array, face_locations)
+                            # Convert PIL Image to bytes for uploading to Storage.
+                            img_byte_arr = io.BytesIO()
+                            img.save(img_byte_arr, format='JPEG')
+                            img_byte_arr = img_byte_arr.getvalue()
 
-                            if face_encodings:
-                                faces_found_count += 1
-                                # Generate a unique ID for each image to prevent collisions
-                                image_uuid = str(uuid.uuid4())
-                                
-                                # If person exists, use their doc ID for storage path, otherwise a placeholder for now
-                                # The actual person_doc_id will be available after the first creation or from existing.
-                                temp_person_folder_id = person_doc_id if person_doc_id else "temp_person_" + str(uuid.uuid4())
-                                unique_filename = f"{new_person_name.replace(' ', '_').lower()}_{image_uuid}.jpg"
-                                storage_path = f"{STORAGE_KNOWN_FACES_FOLDER}/{temp_person_folder_id}/{unique_filename}"
-                                
-                                img_byte_arr = io.BytesIO()
-                                img.save(img_byte_arr, format='JPEG')
-                                img_byte_arr = img_byte_arr.getvalue()
+                            # Get a blob (reference) to the file in Storage and upload.
+                            blob = st.session_state.bucket.blob(storage_path)
+                            blob.upload_from_string(img_byte_arr, content_type='image/jpeg')
+                            st.info(f"Image uploaded to Storage: {storage_path}")
 
-                                blob = st.session_state.bucket.blob(storage_path)
-                                blob.upload_from_string(img_byte_arr, content_type='image/jpeg')
-                                st.info(f"Image uploaded to Storage: {storage_path}")
-
-                                face_encoding_list = face_encodings[0].tolist() 
-                                
-                                new_image_entries.append({
-                                    "encoding": face_encoding_list,
-                                    "storage_path": storage_path,
-                                    "upload_timestamp": firestore.SERVER_TIMESTAMP 
-                                })
-                            else:
-                                st.warning(f"No face found in image '{uploaded_file.name}'. Skipping this image.")
-                        
-                        if faces_found_count == 0:
-                            st.error("No faces were found in any of the uploaded images. Please upload images with clear faces.")
-                            st.stop() # Stop execution if no faces were found in any image
-
-                        if person_doc:
-                            # Person exists, update their document
-                            current_images = person_doc.get("images", [])
-                            updated_images = current_images + new_image_entries
+                            # 3. Save face encoding and metadata to Cloud Firestore.
+                            # Convert NumPy array encoding to a Python list for Firestore compatibility.
+                            face_encoding_list = face_encodings[0].tolist() 
                             
-                            st.session_state.db.collection(FIRESTORE_COLLECTION_NAME).document(person_doc_id).update({
-                                "images": updated_images,
-                                "age": new_person_age, # Update age/height even if adding more images
-                                "height": new_person_height
+                            # Add a new document to the Firestore collection with an auto-generated ID.
+                            # Each document represents a single face entry.
+                            doc_ref = st.session_state.db.collection(FIRESTORE_COLLECTION_NAME).document() 
+                            doc_ref.set({
+                                "name": new_face_name,
+                                "encoding": face_encoding_list,
+                                "image_storage_path": storage_path, # Store path for future reference
+                                "timestamp": firestore.SERVER_TIMESTAMP # Optional: record the time the face was added
                             })
-                            st.success(f"Successfully added {faces_found_count} new image(s) for '{new_person_name}'! ✅")
-                        else:
-                            # Person does not exist, create a new document
-                            new_doc_data = {
-                                "name": new_person_name,
-                                "age": new_person_age,
-                                "height": new_person_height,
-                                "images": new_image_entries,
-                                "created_at": firestore.SERVER_TIMESTAMP
-                            }
-                            doc_ref = st.session_state.db.collection(FIRESTORE_COLLECTION_NAME).add(new_doc_data)
-                            new_person_doc_id = doc_ref[1].id # Get the ID of the newly created document
+
+                            # 4. Invalidate the cache and reload known faces.
+                            load_known_faces_from_firebase.clear()
+                            known_face_encodings, known_face_names = load_known_faces_from_firebase(_=np.random.rand())
                             
-                            # Now, update the storage paths with the actual person_doc_id
-                            # This is a more complex step if you want to rename files in storage.
-                            # For simplicity, we'll assume the initial temp_person_folder_id is fine,
-                            # or you can implement a storage move/rename here if critical.
-                            # For now, the path stored in Firestore will correctly reference the image.
+                            st.success(f"Successfully added '{new_face_name}' to the known faces database! ✅")
+                            st.balloons()
+                            st.rerun() # Rerun to refresh the UI and ensure new faces are recognized immediately
 
-                            st.success(f"Successfully added new person '{new_person_name}' with {faces_found_count} image(s)! ✅")
-                        
-                        st.balloons()
-                        load_known_faces_from_firebase.clear() # Clear cache to force reload
-                        # Reload global known faces after update
-                        known_face_encodings, known_face_names = load_known_faces_from_firebase(_=np.random.rand())
-                        st.rerun() # Rerun to refresh the UI and known faces list
-
-                    except firebase_exceptions.FirebaseError as fe:
-                        st.error(f"Firebase Error: {fe}. Check your Firebase permissions or data structure.")
+                        else:
+                            st.error(f"No face found in the uploaded image for '{new_face_name}'. Please upload an image with a clear face.")
+                            
                     except Exception as e:
-                        st.error(f"An unexpected error occurred: {e}")
+                        st.error(f"Error adding face to Firebase: {e}. "
+                                 "Check Firebase security rules and network connection.")
             else:
-                st.warning("Please provide a name and upload at least one image.")
+                st.warning("Please provide both a name and upload an image.")
 
-        st.subheader("Current Registered People 📋")
-        # Fetch and display current registered people and their image counts
-        try:
-            current_people_docs = st.session_state.db.collection(FIRESTORE_COLLECTION_NAME).stream()
-            people_list = []
-            for doc in current_people_docs:
-                person_data = doc.to_dict()
-                name = person_data.get("name", "N/A")
-                age = person_data.get("age", "N/A")
-                height = person_data.get("height", "N/A")
-                image_count = len(person_data.get("images", []))
-                people_list.append(f"- **{name}** (Age: {age}, Height: {height} cm) - {image_count} image(s)")
-            
-            if people_list:
-                for person_info in sorted(people_list):
-                    st.write(person_info)
-            else:
-                st.info("No people currently registered in the database.")
-        except Exception as e:
-            st.error(f"Error fetching registered people: {e}")
-
+        st.subheader("Current Known Faces 📋")
+        # Display the names of currently registered faces (simple list).
+        if known_face_names:
+            unique_names = sorted(list(set(known_face_names))) # Get unique names and sort them
+            for name in unique_names:
+                st.write(f"- **{name}**")
+        else:
+            st.info("No faces currently registered in the database.")
     else:
         if admin_password_input:
             st.error("Incorrect password.")
