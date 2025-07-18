@@ -10,57 +10,76 @@ import io
 import json
 
 # --- Firebase Initialization (Global, using st.session_state for persistence) ---
+# Use st.session_state to store Firebase client objects (db and bucket)
+# This is the recommended way to handle global, persistent objects in Streamlit.
 if 'db' not in st.session_state or 'bucket' not in st.session_state:
     try:
+        # Load Firebase credentials from Streamlit secrets.
         firebase_credentials_dict = json.loads(st.secrets["firebase"]["service_account_json"])
         
+        # Initialize Firebase Admin SDK only if it hasn't been initialized globally.
+        # This check prevents "ValueError: The default Firebase app already exists" on reruns.
         if not firebase_admin._apps:
             cred = credentials.Certificate(firebase_credentials_dict)
             firebase_admin.initialize_app(cred, {
                 'storageBucket': st.secrets["firebase"]["storage_bucket"] 
             })
         
+        # Store Firestore and Storage client instances in session state.
         st.session_state.db = firestore.client()
         st.session_state.bucket = storage.bucket()
         
-        # st.success("Firebase initialized successfully! 🚀") # Removed as requested
+        # Removed initial Firebase success message as requested
+        # st.success("Firebase initialized successfully! 🚀") 
         
     except Exception as e:
+        # If initialization fails, display an error and stop the app.
         st.error(f"Error initializing Firebase: {e}. Please check your .streamlit/secrets.toml and Firebase setup carefully.")
-        st.stop()
+        st.stop() # Halts script execution
 
+# Define Firestore collection name and Storage folder from secrets for consistency.
 FIRESTORE_COLLECTION_NAME = st.secrets["firebase"]["firestore_collection"]
 STORAGE_KNOWN_FACES_FOLDER = "known_faces_images"
 
+
 # --- Data Loading Function (Cached for performance) ---
+# This function now directly accesses st.session_state.db,
+# so the unhashable db_client is not passed as an argument.
 @st.cache_resource(ttl=3600) 
 def load_known_faces_from_firebase(_=None): 
-    # st.info("Loading known faces from Firebase... This might take a moment.") # Removed as requested
+    # Removed loading info message as requested
+    # st.info("Loading known faces from Firebase... This might take a moment.")
     
     known_face_encodings_local = []
     known_face_names_local = []
 
     try:
+        # Fetch all documents from the specified Firestore collection.
+        # Each document is assumed to be a single face entry.
         docs = st.session_state.db.collection(FIRESTORE_COLLECTION_NAME).stream()
         for doc in docs:
             face_data = doc.to_dict()
             name = face_data.get("name")
-            encoding_list = face_data.get("encoding")
+            encoding_list = face_data.get("encoding") # Encoding is stored as a Python list of floats
             
+            # Validate data and append to local lists.
             if name and encoding_list:
-                known_face_encodings_local.append(np.array(encoding_list))
+                known_face_encodings_local.append(np.array(encoding_list)) # Convert list back to NumPy array
                 known_face_names_local.append(name)
             else:
                 st.warning(f"Skipping malformed face data in Firestore document {doc.id}. Missing name or encoding.")
         
-        # st.success(f"Finished loading known faces. Total known faces: {len(known_face_encodings_local)}") # Removed as requested
+        # Removed finished loading success message as requested
+        # st.success(f"Finished loading known faces. Total known faces: {len(known_face_encodings_local)}") 
         return known_face_encodings_local, known_face_names_local
 
     except Exception as e:
+        # Handle errors during data loading (e.g., network issues, permission errors).
         st.error(f"Error loading known faces from Firebase: {e}. "
                  "Ensure your Firestore collection exists and security rules are correct.")
-        return [], []
+        return [], [] # Return empty lists on error to prevent further issues
 
+# Load known faces when the script runs. This will use the cache if available.
 known_face_encodings, known_face_names = load_known_faces_from_firebase()
 
 # --- Face Processing and Drawing Function ---
@@ -79,30 +98,41 @@ def process_frame_for_faces(frame_rgb, known_encodings, known_names):
     """
     frame_rgb_copy = np.copy(frame_rgb)
     
+    # Find all face locations and face encodings in the current frame.
     face_locations = face_recognition.face_locations(frame_rgb_copy)
     face_encodings = face_recognition.face_encodings(frame_rgb_copy, face_locations)
 
+    # Convert the RGB frame to BGR for OpenCV drawing functions.
     frame_bgr = cv2.cvtColor(frame_rgb_copy, cv2.COLOR_RGB2BGR)
 
+    # If no faces are found, return the original frame.
     if not face_locations:
         return frame_bgr
 
+    # Iterate through each detected face.
     for (top, right, bottom, left), face_encoding in zip(face_locations, face_encodings):
-        name = "Unknown"
+        name = "Unknown" # Default name for unrecognized faces
 
+        # Only attempt to compare if there are known faces loaded.
         if known_encodings: 
+            # Compare the detected face with all known faces.
             matches = face_recognition.compare_faces(known_encodings, face_encoding)
+            # Calculate the distance to each known face (lower distance means better match).
             face_distances = face_recognition.face_distance(known_encodings, face_encoding)
             
+            # Find the best match (minimum distance).
             best_match_index = np.argmin(face_distances)
             
+            # If the best match is actually a match (within a threshold).
             if matches[best_match_index]:
                 name = known_names[best_match_index]
             else:
+                # If not a direct match, but close enough, suggest a "Possibly" match.
+                # The threshold (0.6) can be adjusted based on desired strictness.
                 if face_distances[best_match_index] < 0.6: 
                     name = f"Possibly {known_names[best_match_index]}" 
                 else:
-                    name = "Unknown"
+                    name = "Unknown" # Clearly unknown if not close to any known face
 
         # --- Dynamic Drawing Parameters ---
         # Calculate face width and height
@@ -110,10 +140,8 @@ def process_frame_for_faces(frame_rgb, known_encodings, known_names):
         face_height = bottom - top
         
         # Base multiplier for font and thickness, adjust as needed
-        # These values were chosen after testing to provide a good balance.
-        # You might need to tweak `base_font_size` and `base_thickness` further.
-        base_font_size = 0.002 # A factor of the face_width for font_scale
-        base_thickness = 0.005 # A factor of the face_width for line thickness
+        base_font_size = 0.002 
+        base_thickness = 0.005 
         
         # Ensure minimums to prevent text/lines from disappearing on very small faces
         min_font_scale = 0.5
@@ -178,7 +206,8 @@ def process_frame_for_faces(frame_rgb, known_encodings, known_names):
     return frame_bgr
 
 # --- Streamlit UI Layout ---
-st.set_page_config(page_title="Dynamic Face Recognition App", layout="centered")
+# Set page config with collapsed sidebar for better initial fit
+st.set_page_config(page_title="Dynamic Face Recognition App", layout="centered", initial_sidebar_state="collapsed")
 
 # Initialize session state for page navigation and login status.
 if 'page' not in st.session_state:
@@ -191,26 +220,28 @@ if 'logged_in_as_admin' not in st.session_state: # Track admin login status
 
 # --- Home Page ---
 if st.session_state.page == 'home':
-    col_left, col_center, col_right = st.columns([1, 2, 1])
+    # Removed unnecessary columns for simpler vertical stacking around logo/text
+    # Centering content implicitly with smaller image and adjusted margins
 
-    with col_center:
-        try:
-            st.image("sso_logo.jpg", width=300) 
-        except FileNotFoundError:
-            st.warning("Logo image 'sso_logo.jpg' not found. Please ensure it's in the same directory.")
-            st.markdown("## SSO Consultants") 
+    try:
+        st.image("sso_logo.jpg", width=150) # Further reduced logo size as requested
+    except FileNotFoundError:
+        st.warning("Logo image 'sso_logo.jpg' not found. Please ensure it's in the same directory.")
+        st.markdown("## SSO Consultants") 
 
-    st.markdown("<h2 style='text-align: center;'>SSO Consultants Face Recogniser 🕵️‍♂️</h2>", unsafe_allow_html=True)
-    st.markdown("<h3 style='text-align: center;'>Please choose your login type.</h3>", unsafe_allow_html=True)
+    # Reduced heading sizes slightly and removed vertical spacing via markdown
+    st.markdown("<h3 style='text-align: center; margin-bottom: 0px;'>SSO Consultants Face Recogniser 🕵️‍♂️</h3>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; margin-top: 5px; margin-bottom: 20px; font-size:1.1em;'>Please choose your login type.</p>", unsafe_allow_html=True)
 
-    col1_btn, col2_btn, col3_btn, col4_btn = st.columns([1, 0.7, 0.7, 1]) 
+    # Use two columns for buttons to place them side-by-side and compact spacing
+    col1_btn, col2_btn = st.columns([1, 1]) 
 
-    with col2_btn:
+    with col1_btn:
         if st.button("Login as User", key="user_login_btn", help="Proceed to face recognition for users"):
             st.session_state.page = 'user_auth' # Redirect to user authentication page
             st.rerun()
 
-    with col3_btn:
+    with col2_btn:
         if st.button("Login as Admin", key="admin_login_btn", help="Proceed to admin functionalities"):
             st.session_state.page = 'admin_auth' # Redirect to admin authentication page
             st.rerun()
@@ -269,7 +300,8 @@ elif st.session_state.page == 'user_recognition':
 
     if option == "Live Webcam Recognition":
         st.subheader("Live Webcam Face Recognition")
-        
+        st.info("Allow camera access. Take a picture, and the app will detect/recognize faces.")
+
         camera_image = st.camera_input("Click 'Take Photo' to capture an image:", key="user_camera_input")
 
         if camera_image is not None:
@@ -282,9 +314,11 @@ elif st.session_state.page == 'user_recognition':
                 processed_img_rgb = cv2.cvtColor(processed_img_bgr, cv2.COLOR_BGR2RGB)
 
             st.image(processed_img_rgb, caption="Processed Live Image", use_container_width=True)
-            # st.success("Face detection and recognition complete!") # Removed as requested
+            # Removed success message as requested
+            # st.success("Face detection and recognition complete!") 
         else:
-            # st.warning("Waiting for webcam input. Click 'Take Photo' above.") # Removed as requested
+            # Removed warning message as requested
+            # st.warning("Waiting for webcam input. Click 'Take Photo' above.") 
             pass # Keep pass if you don't want any message
 
     elif option == "Upload Image for Recognition":
@@ -303,9 +337,11 @@ elif st.session_state.page == 'user_recognition':
                 processed_img_rgb = cv2.cvtColor(processed_img_bgr, cv2.COLOR_BGR2RGB)
 
             st.image(processed_img_rgb, caption="Processed Image with Faces", use_container_width=True)
-            # st.success("Face detection and recognition complete!") # Removed as requested
+            # Removed success message as requested
+            # st.success("Face detection and recognition complete!") 
         else:
-            # st.info("Please upload an image file using the browser button.") # Removed as requested
+            # Removed info message as requested
+            # st.info("Please upload an image file using the browser button.") 
             pass # Keep pass if you don't want any message
 
     if st.button("⬅ Log Out and Go Home", key="user_logout_btn"):
