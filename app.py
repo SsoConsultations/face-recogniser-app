@@ -9,72 +9,50 @@ from firebase_admin import credentials, firestore, storage
 import io
 import json # Required for parsing the service account JSON string
 
-# --- Firebase Initialization (Global, only once per app session) ---
-# Use st.session_state to track if Firebase has been initialized.
-# This prevents re-initialization errors on Streamlit reruns.
-if 'firebase_initialized' not in st.session_state:
-    st.session_state.firebase_initialized = False
-
-# Attempt to initialize Firebase only if it hasn't been initialized yet.
-if not st.session_state.firebase_initialized:
+# --- Firebase Initialization (Global, using st.session_state for persistence) ---
+# Use st.session_state to store Firebase client objects (db and bucket)
+# This is the recommended way to handle global, persistent objects in Streamlit.
+if 'db' not in st.session_state or 'bucket' not in st.session_state:
     try:
         # Load Firebase credentials from Streamlit secrets.
-        # The service_account_json is stored as a multi-line string in secrets.toml,
-        # so we need to parse it back into a Python dictionary.
         firebase_credentials_dict = json.loads(st.secrets["firebase"]["service_account_json"])
         
-        # Initialize Firebase Admin SDK with the loaded credentials and storage bucket.
-        cred = credentials.Certificate(firebase_credentials_dict)
-        firebase_admin.initialize_app(cred, {
-            'storageBucket': st.secrets["firebase"]["storage_bucket"]
-        })
+        # Initialize Firebase Admin SDK only if it hasn't been initialized globally.
+        # This check prevents "ValueError: The default Firebase app already exists" on reruns.
+        if not firebase_admin._apps:
+            cred = credentials.Certificate(firebase_credentials_dict)
+            firebase_admin.initialize_app(cred, {
+                'storageBucket': st.secrets["firebase"]["storage_bucket"]
+            })
         
-        # Get Firestore and Storage client instances.
-        # These are assigned to global variables for easy access throughout the script.
-        global db, bucket # Declare global db and bucket here for the 'if' block
-        db = firestore.client()
-        bucket = storage.bucket()
+        # Store Firestore and Storage client instances in session state.
+        st.session_state.db = firestore.client()
+        st.session_state.bucket = storage.bucket()
         
         st.success("Firebase initialized successfully! 🚀")
-        st.session_state.firebase_initialized = True
         
     except Exception as e:
         # If initialization fails, display an error and stop the app.
-        # This is crucial as the app cannot function without Firebase.
         st.error(f"Error initializing Firebase: {e}. Please check your .streamlit/secrets.toml and Firebase setup carefully.")
         st.stop() # Halts script execution
-        
-else:
-    # If Firebase is already initialized (on subsequent reruns),
-    # re-access the client instances to ensure they are in the current script's scope.
-    # Firebase client instances are singletons, so this just retrieves the existing ones.
-    global db, bucket # Declare global db and bucket here for the 'else' block, outside the try-except
-    try:
-        db = firestore.client()
-        bucket = storage.bucket()
-    except Exception as e:
-        # This catches rare cases where Firebase might become unreachable after initial setup
-        st.error(f"Error re-accessing Firebase clients: {e}")
-        st.stop()
 
 # Define Firestore collection name and Storage folder from secrets for consistency.
 FIRESTORE_COLLECTION_NAME = st.secrets["firebase"]["firestore_collection"]
 STORAGE_KNOWN_FACES_FOLDER = "known_faces_images"
 
 # --- Data Loading Function (Cached for performance) ---
-# st.cache_resource caches the return value of this function.
-# The 'ttl' (time to live) parameter ensures the cache is re-evaluated after 1 hour.
-# The '_=None' parameter is a trick to allow manual cache invalidation by passing a random value.
+# This function now explicitly accepts 'db_client' as an argument,
+# making it independent of global 'db' variable.
 @st.cache_resource(ttl=3600) 
-def load_known_faces_from_firebase(_=None): 
+def load_known_faces_from_firebase(db_client, _=None): # Added db_client argument
     st.info("Loading known faces from Firebase... This might take a moment.")
     
     known_face_encodings_local = []
     known_face_names_local = []
 
     try:
-        # Fetch all documents from the specified Firestore collection.
-        docs = db.collection(FIRESTORE_COLLECTION_NAME).stream()
+        # Fetch all documents from the specified Firestore collection using the passed db_client.
+        docs = db_client.collection(FIRESTORE_COLLECTION_NAME).stream()
         for doc in docs:
             face_data = doc.to_dict()
             name = face_data.get("name")
@@ -97,7 +75,8 @@ def load_known_faces_from_firebase(_=None):
         return [], [] # Return empty lists on error to prevent further issues
 
 # Load known faces when the script runs. This will use the cache if available.
-known_face_encodings, known_face_names = load_known_faces_from_firebase()
+# Pass the db client from session state.
+known_face_encodings, known_face_names = load_known_faces_from_firebase(st.session_state.db)
 
 # --- Face Processing and Drawing Function ---
 def process_frame_for_faces(frame_rgb, known_encodings, known_names):
@@ -347,7 +326,8 @@ elif st.session_state.page == 'admin_login':
                             img_byte_arr = img_byte_arr.getvalue()
 
                             # Get a blob (reference) to the file in Storage and upload.
-                            blob = bucket.blob(storage_path)
+                            # Access bucket from st.session_state
+                            blob = st.session_state.bucket.blob(storage_path)
                             blob.upload_from_string(img_byte_arr, content_type='image/jpeg')
                             st.info(f"Image uploaded to Storage: {storage_path}")
 
@@ -356,7 +336,8 @@ elif st.session_state.page == 'admin_login':
                             face_encoding_list = face_encodings[0].tolist() 
                             
                             # Add a new document to the Firestore collection with an auto-generated ID.
-                            doc_ref = db.collection(FIRESTORE_COLLECTION_NAME).document() 
+                            # Access db from st.session_state
+                            doc_ref = st.session_state.db.collection(FIRESTORE_COLLECTION_NAME).document() 
                             doc_ref.set({
                                 "name": new_face_name,
                                 "encoding": face_encoding_list,
@@ -367,9 +348,8 @@ elif st.session_state.page == 'admin_login':
                             # 4. Invalidate the cache and reload known faces.
                             # This forces load_known_faces_from_firebase to fetch fresh data from Firebase.
                             load_known_faces_from_firebase.clear()
-                            global known_face_encodings, known_face_names
-                            # Pass a random value to force cache invalidation
-                            known_face_encodings, known_face_names = load_known_faces_from_firebase(_=np.random.rand())
+                            # Pass the db client from session state to the loading function
+                            known_face_encodings, known_face_names = load_known_faces_from_firebase(st.session_state.db, _=np.random.rand())
                             
                             st.success(f"Successfully added '{new_face_name}' to the known faces database! ✅")
                             st.balloons()
