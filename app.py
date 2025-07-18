@@ -195,7 +195,7 @@ if st.session_state.page == 'home':
     with col_center:
         # Placeholder for logo. Ensure 'sso_logo.jpg' is in your app's directory.
         try:
-            st.image("https://placehold.co/300x100/000000/FFFFFF?text=SSO+Logo", width=300) # Using a placeholder for now
+            st.image("sso_logo.jpg", width=300) # Using a placeholder for now
             # st.image("sso_logo.jpg", width=300) # Uncomment this if you have the actual image
         except Exception: # Catch any error, including FileNotFoundError if local image is used
             st.warning("Logo image 'sso_logo.jpg' not found. Using a placeholder.")
