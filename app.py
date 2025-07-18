@@ -10,40 +10,29 @@ import io
 import json
 
 # --- Firebase Initialization (Global, using st.session_state for persistence) ---
-# Use st.session_state to store Firebase client objects (db and bucket)
-# This is the recommended way to handle global, persistent objects in Streamlit.
 if 'db' not in st.session_state or 'bucket' not in st.session_state:
     try:
-        # Load Firebase credentials from Streamlit secrets.
         firebase_credentials_dict = json.loads(st.secrets["firebase"]["service_account_json"])
         
-        # Initialize Firebase Admin SDK only if it hasn't been initialized globally.
-        # This check prevents "ValueError: The default Firebase app already exists" on reruns.
         if not firebase_admin._apps:
             cred = credentials.Certificate(firebase_credentials_dict)
             firebase_admin.initialize_app(cred, {
                 'storageBucket': st.secrets["firebase"]["storage_bucket"] 
             })
         
-        # Store Firestore and Storage client instances in session state.
         st.session_state.db = firestore.client()
         st.session_state.bucket = storage.bucket()
         
         # st.success("Firebase initialized successfully! 🚀") # Removed as requested
         
     except Exception as e:
-        # If initialization fails, display an error and stop the app.
         st.error(f"Error initializing Firebase: {e}. Please check your .streamlit/secrets.toml and Firebase setup carefully.")
-        st.stop() # Halts script execution
+        st.stop()
 
-# Define Firestore collection name and Storage folder from secrets for consistency.
 FIRESTORE_COLLECTION_NAME = st.secrets["firebase"]["firestore_collection"]
 STORAGE_KNOWN_FACES_FOLDER = "known_faces_images"
 
-
 # --- Data Loading Function (Cached for performance) ---
-# This function now directly accesses st.session_state.db,
-# so the unhashable db_client is not passed as an argument.
 @st.cache_resource(ttl=3600) 
 def load_known_faces_from_firebase(_=None): 
     # st.info("Loading known faces from Firebase... This might take a moment.") # Removed as requested
@@ -52,17 +41,14 @@ def load_known_faces_from_firebase(_=None):
     known_face_names_local = []
 
     try:
-        # Fetch all documents from the specified Firestore collection.
-        # Each document is assumed to be a single face entry.
         docs = st.session_state.db.collection(FIRESTORE_COLLECTION_NAME).stream()
         for doc in docs:
             face_data = doc.to_dict()
             name = face_data.get("name")
-            encoding_list = face_data.get("encoding") # Encoding is stored as a Python list of floats
+            encoding_list = face_data.get("encoding")
             
-            # Validate data and append to local lists.
             if name and encoding_list:
-                known_face_encodings_local.append(np.array(encoding_list)) # Convert list back to NumPy array
+                known_face_encodings_local.append(np.array(encoding_list))
                 known_face_names_local.append(name)
             else:
                 st.warning(f"Skipping malformed face data in Firestore document {doc.id}. Missing name or encoding.")
@@ -71,12 +57,10 @@ def load_known_faces_from_firebase(_=None):
         return known_face_encodings_local, known_face_names_local
 
     except Exception as e:
-        # Handle errors during data loading (e.g., network issues, permission errors).
         st.error(f"Error loading known faces from Firebase: {e}. "
                  "Ensure your Firestore collection exists and security rules are correct.")
-        return [], [] # Return empty lists on error to prevent further issues
+        return [], []
 
-# Load known faces when the script runs. This will use the cache if available.
 known_face_encodings, known_face_names = load_known_faces_from_firebase()
 
 # --- Face Processing and Drawing Function ---
@@ -95,65 +79,76 @@ def process_frame_for_faces(frame_rgb, known_encodings, known_names):
     """
     frame_rgb_copy = np.copy(frame_rgb)
     
-    # Find all face locations and face encodings in the current frame.
     face_locations = face_recognition.face_locations(frame_rgb_copy)
     face_encodings = face_recognition.face_encodings(frame_rgb_copy, face_locations)
 
-    # Convert the RGB frame to BGR for OpenCV drawing functions.
     frame_bgr = cv2.cvtColor(frame_rgb_copy, cv2.COLOR_RGB2BGR)
 
-    # If no faces are found, return the original frame.
     if not face_locations:
         return frame_bgr
 
-    # Iterate through each detected face.
     for (top, right, bottom, left), face_encoding in zip(face_locations, face_encodings):
-        name = "Unknown" # Default name for unrecognized faces
+        name = "Unknown"
 
-        # Only attempt to compare if there are known faces loaded.
         if known_encodings: 
-            # Compare the detected face with all known faces.
             matches = face_recognition.compare_faces(known_encodings, face_encoding)
-            # Calculate the distance to each known face (lower distance means better match).
             face_distances = face_recognition.face_distance(known_encodings, face_encoding)
             
-            # Find the best match (minimum distance).
             best_match_index = np.argmin(face_distances)
             
-            # If the best match is actually a match (within a threshold).
             if matches[best_match_index]:
                 name = known_names[best_match_index]
             else:
-                # If not a direct match, but close enough, suggest a "Possibly" match.
-                # The threshold (0.6) can be adjusted based on desired strictness.
                 if face_distances[best_match_index] < 0.6: 
                     name = f"Possibly {known_names[best_match_index]}" 
                 else:
-                    name = "Unknown" # Clearly unknown if not close to any known face
+                    name = "Unknown"
 
-        # --- Drawing Bounding Boxes and Labels ---
-        box_padding = 15 # Padding around the face box
-        base_label_height = 25 # Minimum height for the name label
-        text_y_offset = 10 # Vertical offset for text within the label
+        # --- Dynamic Drawing Parameters ---
+        # Calculate face width and height
+        face_width = right - left
+        face_height = bottom - top
+        
+        # Base multiplier for font and thickness, adjust as needed
+        # These values were chosen after testing to provide a good balance.
+        # You might need to tweak `base_font_size` and `base_thickness` further.
+        base_font_size = 0.002 # A factor of the face_width for font_scale
+        base_thickness = 0.005 # A factor of the face_width for line thickness
+        
+        # Ensure minimums to prevent text/lines from disappearing on very small faces
+        min_font_scale = 0.5
+        min_thickness = 1
+        
+        font_scale = max(min_font_scale, base_font_size * face_width)
+        font_thickness = max(min_thickness, int(base_thickness * face_width))
+        line_thickness = max(2, int(face_width * 0.01)) # Make the box line slightly thicker than text thickness
+
+        box_padding_factor = 0.1 # Padding as a percentage of face width/height
+        box_padding_x = int(face_width * box_padding_factor)
+        box_padding_y = int(face_height * box_padding_factor)
+
+        # Calculate extended box coordinates with dynamic padding.
+        # Ensure they stay within image bounds.
+        top_ext = max(0, top - box_padding_y)
+        right_ext = min(frame_bgr.shape[1], right + box_padding_x)
+        bottom_ext = min(frame_bgr.shape[0], bottom + box_padding_y)
+        left_ext = max(0, left - box_padding_x)
+
+        # Draw the main bounding box around the face with dynamic thickness.
+        cv2.rectangle(frame_bgr, (left_ext, top_ext), (right_ext, bottom_ext), (0, 255, 0), line_thickness)
+
+        # Calculate text size using the dynamic font scale and thickness.
         font = cv2.FONT_HERSHEY_DUPLEX
-        font_scale = 0.7
-        font_thickness = 1
-
-        # Calculate extended box coordinates with padding, ensuring they stay within image bounds.
-        top_ext = max(0, top - box_padding)
-        right_ext = min(frame_bgr.shape[1], right + box_padding)
-        bottom_ext = min(frame_bgr.shape[0], bottom + box_padding)
-        left_ext = max(0, left - box_padding)
-
-        # Draw the main bounding box around the face.
-        cv2.rectangle(frame_bgr, (left_ext, top_ext), (right_ext, bottom_ext), (0, 255, 0), 2)
-
-        # Calculate text size to dynamically size the label background.
         (text_width, text_height), baseline = cv2.getTextSize(name, font, font_scale, font_thickness)
-        label_width = text_width + (box_padding * 2)
-        label_height = max(base_label_height, text_height + (text_y_offset * 2))
+        
+        # Use dynamic padding for label width
+        label_padding_x = int(text_width * 0.2) # Some padding relative to text width
+        label_padding_y = int(text_height * 0.5) # Some padding relative to text height
 
-        # Position the label background directly below the bounding box.
+        label_width = text_width + (label_padding_x * 2)
+        label_height = text_height + (label_padding_y * 2) + baseline
+
+        # Position the label background directly below the bounding box, dynamically adjusting width.
         label_top = bottom_ext
         label_bottom = label_top + label_height
         label_left = left_ext
@@ -163,8 +158,8 @@ def process_frame_for_faces(frame_rgb, known_encodings, known_names):
         if label_bottom > frame_bgr.shape[0]:
             label_bottom = frame_bgr.shape[0]
             label_top = label_bottom - label_height
-            if label_top < 0: # If label goes above the top of the image
-                label_top = 0
+            if label_top < 0:
+                label_top = 0 # Prevent label from going completely off-screen upwards
 
         if label_right > frame_bgr.shape[1]:
             label_right = frame_bgr.shape[1]
@@ -174,8 +169,8 @@ def process_frame_for_faces(frame_rgb, known_encodings, known_names):
         cv2.rectangle(frame_bgr, (label_left, label_top), (label_right, label_bottom), (0, 255, 0), cv2.FILLED)
 
         # Calculate text position to center it within the label background.
-        text_x = label_left + (label_right - label_left - text_width) // 2
-        text_y = label_top + (label_height + text_height) // 2 - baseline
+        text_x = label_left + label_padding_x
+        text_y = label_top + label_padding_y + text_height 
 
         # Put the name text on the label.
         cv2.putText(frame_bgr, name, (text_x, text_y), font, font_scale, (0, 0, 0), font_thickness)
@@ -274,7 +269,8 @@ elif st.session_state.page == 'user_recognition':
 
     if option == "Live Webcam Recognition":
         st.subheader("Live Webcam Face Recognition")
-       
+        st.info("Allow camera access. Take a picture, and the app will detect/recognize faces.")
+
         camera_image = st.camera_input("Click 'Take Photo' to capture an image:", key="user_camera_input")
 
         if camera_image is not None:
