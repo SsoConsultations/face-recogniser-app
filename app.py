@@ -23,7 +23,7 @@ if 'db' not in st.session_state or 'bucket' not in st.session_state:
         st.session_state.db = firestore.client()
         st.session_state.bucket = storage.bucket()
         
-        st.success("Firebase initialized successfully! 🚀")
+        # st.success("Firebase initialized successfully! 🚀") # Comment out or remove this line
         
     except Exception as e:
         st.error(f"Error initializing Firebase: {e}. Please check your .streamlit/secrets.toml and Firebase setup carefully.")
@@ -35,7 +35,7 @@ STORAGE_KNOWN_FACES_FOLDER = "known_faces_images"
 # --- Data Loading Function (Cached for performance) ---
 @st.cache_resource(ttl=3600) 
 def load_known_faces_from_firebase(_=None): 
-    st.info("Loading known faces from Firebase... This might take a moment.")
+    # st.info("Loading known faces from Firebase... This might take a moment.") # Comment out or remove this line
     
     known_face_encodings_local = []
     known_face_names_local = []
@@ -53,7 +53,7 @@ def load_known_faces_from_firebase(_=None):
             else:
                 st.warning(f"Skipping malformed face data in Firestore document {doc.id}. Missing name or encoding.")
         
-        st.success(f"Finished loading known faces. Total known faces: {len(known_face_encodings_local)}")
+        # st.success(f"Finished loading known faces. Total known faces: {len(known_face_encodings_local)}") # Comment out or remove this line
         return known_face_encodings_local, known_face_names_local
 
     except Exception as e:
@@ -139,9 +139,9 @@ st.set_page_config(page_title="Dynamic Face Recognition App", layout="centered")
 
 if 'page' not in st.session_state:
     st.session_state.page = 'home'
-if 'logged_in_as_user' not in st.session_state: # Track user login status
+if 'logged_in_as_user' not in st.session_state:
     st.session_state.logged_in_as_user = False
-if 'logged_in_as_admin' not in st.session_state: # Track admin login status
+if 'logged_in_as_admin' not in st.session_state:
     st.session_state.logged_in_as_admin = False
 
 
@@ -163,12 +163,12 @@ if st.session_state.page == 'home':
 
     with col2_btn:
         if st.button("Login as User", key="user_login_btn", help="Proceed to face recognition for users"):
-            st.session_state.page = 'user_auth' # Changed to user_auth
+            st.session_state.page = 'user_auth'
             st.rerun()
 
     with col3_btn:
         if st.button("Login as Admin", key="admin_login_btn", help="Proceed to admin functionalities"):
-            st.session_state.page = 'admin_auth' # Changed to admin_auth
+            st.session_state.page = 'admin_auth'
             st.rerun()
 
 # --- User Authentication Page ---
@@ -180,7 +180,6 @@ elif st.session_state.page == 'user_auth':
     user_password_input = st.text_input("Password:", type="password", key="user_password_input")
 
     if st.button("Login", key="submit_user_login"):
-        # Retrieve user credentials from secrets
         user_credentials = st.secrets["users"]
         authenticated = False
         for key in user_credentials:
@@ -193,7 +192,7 @@ elif st.session_state.page == 'user_auth':
         if authenticated:
             st.success("User login successful! Redirecting to Face Recognition... 🎉")
             st.session_state.logged_in_as_user = True
-            st.session_state.page = 'user_recognition' # New page for authenticated user
+            st.session_state.page = 'user_recognition'
             st.rerun()
         else:
             st.error("Invalid username or password for user.")
@@ -279,7 +278,7 @@ elif st.session_state.page == 'admin_auth':
            admin_password_input == st.secrets["admin"]["password"]:
             st.success("Admin login successful! Redirecting to Admin Panel... 🎉")
             st.session_state.logged_in_as_admin = True
-            st.session_state.page = 'admin_panel' # New page for authenticated admin
+            st.session_state.page = 'admin_panel'
             st.rerun()
         else:
             st.error("Invalid username or password for admin.")
@@ -340,7 +339,6 @@ elif st.session_state.page == 'admin_panel':
                         })
 
                         load_known_faces_from_firebase.clear()
-                        # Pass a dummy argument to force cache bust (e.g., a random number)
                         known_face_encodings, known_face_names = load_known_faces_from_firebase(_=np.random.rand()) 
                         
                         st.success(f"Successfully added '{new_face_name}' to the known faces database! ✅")
