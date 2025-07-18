@@ -247,7 +247,7 @@ elif st.session_state.page == 'user_login':
                 processed_img_bgr = process_frame_for_faces(img_rgb, known_face_encodings, known_face_names)
                 processed_img_rgb = cv2.cvtColor(processed_img_bgr, cv2.COLOR_BGR2RGB)
 
-            st.image(processed_img_rgb, caption="Processed Live Image", use_column_width=True)
+            st.image(processed_img_rgb, caption="Processed Live Image", use_container_width=True)
             st.success("Face detection and recognition complete!")
         else:
             st.warning("Waiting for webcam input. Click 'Take Photo' above.")
@@ -262,12 +262,12 @@ elif st.session_state.page == 'user_login':
                 img_bgr = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
                 img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
 
-                st.image(img_rgb, caption="Original Uploaded Image", use_column_width=True)
+                st.image(img_rgb, caption="Original Uploaded Image", use_container_width=True)
 
                 processed_img_bgr = process_frame_for_faces(img_rgb, known_face_encodings, known_face_names)
                 processed_img_rgb = cv2.cvtColor(processed_img_bgr, cv2.COLOR_BGR2RGB)
 
-            st.image(processed_img_rgb, caption="Processed Image with Faces", use_column_width=True)
+            st.image(processed_img_rgb, caption="Processed Image with Faces", use_container_width=True)
             st.success("Face detection and recognition complete!")
         else:
             st.info("Please upload an image file using the browser button.")
