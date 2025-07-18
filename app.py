@@ -291,7 +291,6 @@ elif st.session_state.page == 'admin_login':
                             # Clear the cache to force reload from Firebase
                             load_known_faces_from_firebase.clear()
                             # Re-load known faces; this will update the global lists from Firebase
-                            global known_face_encodings, known_face_names
                             known_face_encodings, known_face_names = load_known_faces_from_firebase(_=np.random.rand())
                             
                             st.success(f"Successfully added '{new_face_name}' to the known faces database! ✅")
