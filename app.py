@@ -48,8 +48,8 @@ else:
     # If Firebase is already initialized (on subsequent reruns),
     # re-access the client instances to ensure they are in the current script's scope.
     # Firebase client instances are singletons, so this just retrieves the existing ones.
+    global db, bucket # Declare global db and bucket here for the 'else' block, outside the try-except
     try:
-        global db, bucket # Declare global db and bucket here for the 'else' block as well
         db = firestore.client()
         bucket = storage.bucket()
     except Exception as e:
