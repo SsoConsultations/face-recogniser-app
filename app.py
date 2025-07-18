@@ -40,9 +40,6 @@ if 'db' not in st.session_state or 'bucket' not in st.session_state:
 FIRESTORE_COLLECTION_NAME = st.secrets["firebase"]["firestore_collection"]
 STORAGE_KNOWN_FACES_FOLDER = "known_faces_images"
 
-# --- Debugging line to display the bucket name being used ---
-st.sidebar.info(f"App is attempting to use Storage Bucket: **`{st.secrets['firebase']['storage_bucket']}`**")
-
 
 # --- Data Loading Function (Cached for performance) ---
 # This function now directly accesses st.session_state.db,
