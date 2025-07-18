@@ -13,10 +13,10 @@ KNOWN_FACES_DIR = 'known_faces'
 @st.cache_resource
 def load_known_faces(known_faces_dir, _=None): # Added _=None to allow manual cache invalidation
     st.info("Loading known faces... This might take a moment.")
-
+    
     # Declare global variables here to modify the module-level lists
     global known_face_encodings, known_face_names
-
+    
     # Initialize lists (important if cache is cleared or on first run)
     known_face_encodings = []
     known_face_names = []
@@ -61,7 +61,7 @@ known_face_encodings, known_face_names = load_known_faces(KNOWN_FACES_DIR)
 # --- Function to process an image and draw boxes (reusable) ---
 def process_frame_for_faces(frame_rgb, known_encodings, known_names):
     frame_rgb = np.copy(frame_rgb)
-
+    
     face_locations = face_recognition.face_locations(frame_rgb)
     face_encodings = face_recognition.face_encodings(frame_rgb, face_locations)
 
@@ -147,7 +147,7 @@ if st.session_state.page == 'home':
             st.warning("Logo image 'sso_logo.jpg' not found. Please ensure it's in the same directory.")
             st.markdown("## SSO Consultants")
 
-    st.markdown("<h2 style='text-align: center;'>SSO Consultants Face Recogniser 🕵‍♂</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center;'>SSO Consultants Face Recogniser 🕵️‍♂️</h2>", unsafe_allow_html=True)
     st.markdown("<h3 style='text-align: center;'>Please choose your login type.</h3>", unsafe_allow_html=True)
 
     col1_btn, col2_btn, col3_btn, col4_btn = st.columns([1, 0.7, 0.7, 1])
@@ -164,14 +164,14 @@ if st.session_state.page == 'home':
 
 # --- User Login (Face Recognition) Page ---
 elif st.session_state.page == 'user_login':
-    st.title("Face Recognition App with Dynamic Labels 🕵‍♂")
+    st.title("Face Recognition App with Dynamic Labels 🕵️‍♂️")
     st.markdown("""
     This application performs face recognition from your live webcam or an uploaded image.
     The name labels will dynamically adjust their size to fit the recognized name!
     """)
 
     if not known_face_encodings:
-        st.error("No known faces loaded. Please ensure your known_faces directory "
+        st.error("No known faces loaded. Please ensure your `known_faces` directory "
                  "is correctly structured and contains images with faces for training.")
 
     st.sidebar.header("Choose Input Method")
@@ -224,11 +224,11 @@ elif st.session_state.page == 'user_login':
 # --- Admin Login Page (Placeholder) ---
 elif st.session_state.page == 'admin_login':
     st.title("Admin Panel 🔒")
-    st.markdown("This section is for *administrators* only.")
+    st.markdown("This section is for **administrators** only.")
 
     admin_password = st.text_input("Enter Admin Password:", type="password", key="admin_pass_input")
 
-    if admin_password == "admin123": # *IMPORTANT: Replace with a more secure authentication method for production!*
+    if admin_password == "admin123": # **IMPORTANT: Replace with a more secure authentication method for production!**
         st.success("Welcome, Admin!")
 
         st.subheader("Add New Faces to Database ➕")
@@ -244,29 +244,29 @@ elif st.session_state.page == 'admin_login':
 
                 # Save the image
                 # Generate a unique filename to avoid overwriting
-                image_filename = f"{new_face_name.replace(' ', '').lower()}{len(os.listdir(person_dir)) + 1}.jpg"
+                image_filename = f"{new_face_name.replace(' ', '_').lower()}_{len(os.listdir(person_dir)) + 1}.jpg"
                 image_path = os.path.join(person_dir, image_filename)
-
+                
                 # Use PIL to save the image to ensure consistent format
                 img = Image.open(new_face_image).convert("RGB")
                 img.save(image_path, "JPEG") # Save as JPEG
 
                 st.info(f"Analyzing {new_face_name}'s image...")
-
+                
                 try:
                     # Verify face can be encoded
                     image_to_encode = face_recognition.load_image_file(image_path)
                     face_locations = face_recognition.face_locations(image_to_encode)
-
+                    
                     if face_locations:
                         # Clear the cache for load_known_faces to force a reload
                         load_known_faces.clear()
-
+                        
                         # Re-load known faces; this will update the global lists
                         # The 'global' keyword is NOT needed here because known_face_encodings
                         # and known_face_names are already global variables at the module level.
                         known_face_encodings, known_face_names = load_known_faces(KNOWN_FACES_DIR, _=np.random.rand())
-
+                        
                         st.success(f"Successfully added '{new_face_name}' to the known faces database! ✅")
                         st.rerun() # Rerun to refresh the UI and known faces list
                     else:
@@ -293,7 +293,7 @@ elif st.session_state.page == 'admin_login':
             # Display current known faces with names
             # Using sorted(set(...)) to display unique names alphabetically
             for name in sorted(set(known_face_names)): 
-                st.write(f"- *{name}*")
+                st.write(f"- **{name}**")
         else:
             st.info("No faces currently registered in the database.")
 
@@ -307,4 +307,4 @@ elif st.session_state.page == 'admin_login':
         st.rerun()
 
 st.markdown("---")
-st.markdown("Developed with ❤ using face_recognition, OpenCV, and Streamlit.")
+st.markdown("Developed with ❤️ using `face_recognition`, `OpenCV`, and `Streamlit`.")
