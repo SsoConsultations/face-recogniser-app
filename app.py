@@ -31,7 +31,7 @@ if not st.session_state.firebase_initialized:
         
         # Get Firestore and Storage client instances.
         # These are assigned to global variables for easy access throughout the script.
-        global db, bucket
+        global db, bucket # Declare global before assignment
         db = firestore.client()
         bucket = storage.bucket()
         
