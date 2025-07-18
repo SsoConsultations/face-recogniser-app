@@ -41,18 +41,18 @@ FIRESTORE_COLLECTION_NAME = st.secrets["firebase"]["firestore_collection"]
 STORAGE_KNOWN_FACES_FOLDER = "known_faces_images"
 
 # --- Data Loading Function (Cached for performance) ---
-# This function now explicitly accepts 'db_client' as an argument,
-# making it independent of global 'db' variable.
+# This function now directly accesses st.session_state.db,
+# so the unhashable db_client is not passed as an argument.
 @st.cache_resource(ttl=3600) 
-def load_known_faces_from_firebase(db_client, _=None): # Added db_client argument
+def load_known_faces_from_firebase(_=None): # Removed db_client argument
     st.info("Loading known faces from Firebase... This might take a moment.")
     
     known_face_encodings_local = []
     known_face_names_local = []
 
     try:
-        # Fetch all documents from the specified Firestore collection using the passed db_client.
-        docs = db_client.collection(FIRESTORE_COLLECTION_NAME).stream()
+        # Fetch all documents from the specified Firestore collection using st.session_state.db.
+        docs = st.session_state.db.collection(FIRESTORE_COLLECTION_NAME).stream()
         for doc in docs:
             face_data = doc.to_dict()
             name = face_data.get("name")
@@ -75,8 +75,8 @@ def load_known_faces_from_firebase(db_client, _=None): # Added db_client argumen
         return [], [] # Return empty lists on error to prevent further issues
 
 # Load known faces when the script runs. This will use the cache if available.
-# Pass the db client from session state.
-known_face_encodings, known_face_names = load_known_faces_from_firebase(st.session_state.db)
+# No longer pass the db client as an argument to the cached function.
+known_face_encodings, known_face_names = load_known_faces_from_firebase()
 
 # --- Face Processing and Drawing Function ---
 def process_frame_for_faces(frame_rgb, known_encodings, known_names):
@@ -349,7 +349,7 @@ elif st.session_state.page == 'admin_login':
                             # This forces load_known_faces_from_firebase to fetch fresh data from Firebase.
                             load_known_faces_from_firebase.clear()
                             # Pass the db client from session state to the loading function
-                            known_face_encodings, known_face_names = load_known_faces_from_firebase(st.session_state.db, _=np.random.rand())
+                            known_face_encodings, known_face_names = load_known_faces_from_firebase(_=np.random.rand())
                             
                             st.success(f"Successfully added '{new_face_name}' to the known faces database! ✅")
                             st.balloons()
