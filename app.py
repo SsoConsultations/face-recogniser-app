@@ -1,160 +1,89 @@
-import os
-import json
 import streamlit as st
 import face_recognition
+import os
 import numpy as np
 import cv2
 from PIL import Image # Import Pillow for image manipulation
-import firebase_admin
-from firebase_admin import credentials, firestore, storage
-import logging # Import logging for more robust error handling
 
-# --- Configuration Constants ---
-# Use environment variables for sensitive data and configurations
-# Default to a placeholder if not set, but warn the user
-FIREBASE_STORAGE_BUCKET_NAME = os.getenv('FIREBASE_STORAGE_BUCKET_NAME', 'face-recogniser-app.appspot.com')
-ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD')
-if ADMIN_PASSWORD is None:
-    st.warning("ADMIN_PASSWORD environment variable not set. Using 'admin123' for demonstration. Set it securely for production!")
-    ADMIN_PASSWORD = "admin123" # Fallback for demonstration, DO NOT use in production
-
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
-# --- Firebase Initialization ---
-# Initialize Firebase outside of Streamlit's main execution flow if possible,
-# or ensure it's only initialized once. st.singleton is not available for firebase_admin.
-# A common pattern is to put it in a function decorated with st.cache_resource.
-@st.cache_resource
-def initialize_firebase():
-    try:
-        firebase_service_account_json = os.getenv('FIREBASE_SERVICE_ACCOUNT')
-        if not firebase_service_account_json:
-            st.error("FIREBASE_SERVICE_ACCOUNT environment variable not set. Firebase cannot be initialized.")
-            st.stop() # Stop the app if critical env var is missing
-            
-        cred = credentials.Certificate(json.loads(firebase_service_account_json))
-        firebase_admin.initialize_app(cred, {
-            'storageBucket': FIREBASE_STORAGE_BUCKET_NAME
-        })
-        logging.info("Firebase initialized successfully.")
-        return firestore.client(), storage.bucket()
-    except (json.JSONDecodeError, ValueError, Exception) as e:
-        st.error(f"Error initializing Firebase: {e}. Please ensure FIREBASE_SERVICE_ACCOUNT is correctly set and is a valid JSON string.")
-        st.stop() # Stop the app if Firebase can't be initialized
-
-# Initialize Firebase and get clients
-db, bucket = initialize_firebase()
+# --- Configuration (relative path for deployment) ---
+KNOWN_FACES_DIR = 'known_faces'
 
 # --- Data Storage (use st.cache_resource for efficiency) ---
+# Add a parameter to force reload the cache
 @st.cache_resource
-def load_known_faces_from_firestore():
-    """
-    Loads known face encodings and names from Firestore and Firebase Storage.
-    This function is cached to avoid repeated database calls.
-    """
-    st.info("Loading known faces from Firestore... This might take a moment. ⏳")
-    known_face_encodings_list = []
-    known_face_names_list = []
+def load_known_faces(known_faces_dir, _=None): # Added _=None to allow manual cache invalidation
+    st.info("Loading known faces... This might take a moment.")
 
-    try:
-        # Firestore security rules: /artifacts/{appId}/public/data/known_faces
-        # Note: In Streamlit, __app_id is not automatically available like in Canvas.
-        # For a truly multi-tenant Streamlit app, you'd need to manage app IDs differently.
-        # For a single Streamlit deployment, 'default-app-id' is fine, or you can make it an env var.
-        app_id_for_firestore = os.getenv('STREAMLIT_APP_ID', 'default-streamlit-app-id') # Use an env var or a fixed ID
-        faces_ref = db.collection(f'artifacts/{app_id_for_firestore}/public/data/known_faces').stream()
-        
-        for face in faces_ref:
-            data = face.to_dict()
-            name = data.get('name')
-            image_path = data.get('image_path')
+    # Declare global variables here to modify the module-level lists
+    global known_face_encodings, known_face_names
 
-            if not name or not image_path:
-                logging.warning(f"Skipping malformed face entry in Firestore: {face.id} (Missing name or image_path)")
-                continue
+    # Initialize lists (important if cache is cleared or on first run)
+    known_face_encodings = []
+    known_face_names = []
 
-            try:
-                # Load the image from Firebase Storage
-                image_blob = bucket.blob(image_path)
-                image_data = image_blob.download_as_bytes()
-                image = face_recognition.load_image_file(image_data)
-                
-                face_encodings = face_recognition.face_encodings(image)
-                if face_encodings:
-                    known_face_encodings_list.append(face_encodings[0])
-                    known_face_names_list.append(name)
-                    logging.info(f"Loaded face for: {name}")
-                else:
-                    logging.warning(f"No face found in image for {name} at path: {image_path}. Skipping.")
-            except Exception as e:
-                logging.error(f"Error loading image or encoding face for {name} at {image_path}: {e}")
-                st.warning(f"Could not load image for '{name}'. It might be corrupted or missing in storage.")
-                continue
+    if not os.path.exists(known_faces_dir):
+        os.makedirs(known_faces_dir) # Create the directory if it doesn't exist
+        st.warning(f"'{known_faces_dir}' directory created. Please add face images.")
+        return [], [] # Return empty lists if directory was just created
 
-    except Exception as e:
-        st.error(f"Failed to load known faces from Firestore: {e}. Check your Firestore rules and network connectivity.")
-        logging.critical(f"Critical error loading known faces: {e}")
-    
-    st.success(f"Finished loading known faces from Firestore. Total known faces: {len(known_face_encodings_list)} ✅")
-    return known_face_encodings_list, known_face_names_list
+    # Iterate through subdirectories for each person
+    for name in os.listdir(known_faces_dir):
+        person_dir = os.path.join(known_faces_dir, name)
+        if os.path.isdir(person_dir):
+            for filename in os.listdir(person_dir):
+                if filename.lower().endswith(('.png', '.jpg', '.jpeg')):
+                    image_path = os.path.join(person_dir, filename)
+                    try:
+                        image = face_recognition.load_image_file(image_path)
+                        face_locations = face_recognition.face_locations(image)
+                        face_encodings = face_recognition.face_encodings(image, face_locations)
 
-# Initialize known faces at module level
+                        if face_encodings:
+                            known_face_encodings.append(face_encodings[0])
+                            known_face_names.append(name)
+                        # else:
+                        #     st.warning(f"No face found in {filename} for {name}. Skipping.")
+                    except Exception as e:
+                        st.error(f"Error processing {filename} for {name}: {e}")
+                        pass # Continue to next file even if one fails
+    st.success(f"Finished loading known faces. Total known faces: {len(known_face_encodings)}")
+    return known_face_encodings, known_face_names
+
+# Initialize global variables at module level
 known_face_encodings = []
 known_face_names = []
-# Ensure this only runs once on app startup or when cache is cleared
-if not st.session_state.get('faces_loaded_initial', False):
-    known_face_encodings, known_face_names = load_known_faces_from_firestore()
-    st.session_state['faces_loaded_initial'] = True
+
+# Load faces once when the app starts or is re-run due to cache invalidation
+# The initial call to load_known_faces will populate the global lists.
+known_face_encodings, known_face_names = load_known_faces(KNOWN_FACES_DIR)
+
 
 # --- Function to process an image and draw boxes (reusable) ---
 def process_frame_for_faces(frame_rgb, known_encodings, known_names):
-    """
-    Processes an RGB image to detect faces, recognize them, and draw bounding boxes and labels.
+    frame_rgb = np.copy(frame_rgb)
 
-    Args:
-        frame_rgb (numpy.array): The input image frame in RGB format.
-        known_encodings (list): A list of known face encodings.
-        known_names (list): A list of names corresponding to known_encodings.
+    face_locations = face_recognition.face_locations(frame_rgb)
+    face_encodings = face_recognition.face_encodings(frame_rgb, face_locations)
 
-    Returns:
-        numpy.array: The processed image frame in BGR format with drawn faces and labels.
-    """
-    frame_rgb_copy = np.copy(frame_rgb)
-
-    # Convert to grayscale for face detection if desired (face_recognition handles RGB directly)
-    # face_locations = face_recognition.face_locations(frame_rgb_copy, model="cnn") # 'hog' is default, 'cnn' is slower but more accurate
-    face_locations = face_recognition.face_locations(frame_rgb_copy)
-    face_encodings = face_recognition.face_encodings(frame_rgb_copy, face_locations)
-
-    frame_bgr = cv2.cvtColor(frame_rgb_copy, cv2.COLOR_RGB2BGR)
+    frame_bgr = cv2.cvtColor(frame_rgb, cv2.COLOR_RGB2BGR)
 
     if not face_locations:
         return frame_bgr # Return original frame if no faces found
 
     for (top, right, bottom, left), face_encoding in zip(face_locations, face_encodings):
         name = "Unknown"
-        color = (0, 0, 255) # Red for Unknown
 
         if known_encodings: # Only compare if there are known faces
             matches = face_recognition.compare_faces(known_encodings, face_encoding)
             face_distances = face_recognition.face_distance(known_encodings, face_encoding)
-            
-            # Find the best match
             best_match_index = np.argmin(face_distances)
-            
-            # A common threshold for face_recognition is around 0.6.
-            # Lower values mean a stricter match.
-            recognition_threshold = 0.6 
-            
-            if matches[best_match_index] and face_distances[best_match_index] < recognition_threshold:
+            if matches[best_match_index]:
                 name = known_names[best_match_index]
-                color = (0, 255, 0) # Green for Known
-            # Optional: if it's close but not a perfect match, still consider it if within threshold
-            elif face_distances[best_match_index] < recognition_threshold:
-                name = f"Likely {known_names[best_match_index]}?" # Indicate uncertainty
-                color = (0, 165, 255) # Orange for Likely
-            
+            else:
+                # Optional: If no exact match, consider the closest match if within a threshold
+                if face_distances[best_match_index] < 0.6: # Adjust threshold as needed
+                    name = known_names[best_match_index]
+
         # Drawing rectangles and labels
         box_padding = 15
         base_label_height = 25
@@ -168,10 +97,8 @@ def process_frame_for_faces(frame_rgb, known_encodings, known_names):
         bottom_ext = min(frame_bgr.shape[0], bottom + box_padding)
         left_ext = max(0, left - box_padding)
 
-        # Draw face box
-        cv2.rectangle(frame_bgr, (left_ext, top_ext), (right_ext, bottom_ext), color, 2)
+        cv2.rectangle(frame_bgr, (left_ext, top_ext), (right_ext, bottom_ext), (0, 255, 0), 2)
 
-        # Calculate label size and position
         (text_width, text_height), baseline = cv2.getTextSize(name, font, font_scale, font_thickness)
         label_width = text_width + (box_padding * 2)
         label_height = max(base_label_height, text_height + (text_y_offset * 2))
@@ -179,288 +106,205 @@ def process_frame_for_faces(frame_rgb, known_encodings, known_names):
         label_top = bottom_ext
         label_bottom = label_top + label_height
         label_left = left_ext
-        label_right = max(right_ext, left_ext + label_width)
+        label_right = max(right_ext, left_ext + label_width) # Ensure label is at least as wide as box
 
-        # Ensure label stays within image bounds
+        # Adjust label position if it goes out of bounds
         if label_bottom > frame_bgr.shape[0]:
             label_bottom = frame_bgr.shape[0]
             label_top = label_bottom - label_height
-            if label_top < 0: label_top = 0
+            if label_top < 0: # If still goes above, set to 0
+                label_top = 0
 
         if label_right > frame_bgr.shape[1]:
             label_right = frame_bgr.shape[1]
-            label_left = max(0, label_right - label_width)
+            label_left = max(0, label_right - label_width) # Ensure label is not out of bounds left
 
-        # Draw label background
-        cv2.rectangle(frame_bgr, (label_left, label_top), (label_right, label_bottom), color, cv2.FILLED)
+        cv2.rectangle(frame_bgr, (label_left, label_top), (label_right, label_bottom), (0, 255, 0), cv2.FILLED)
 
-        # Draw text on label
         text_x = label_left + (label_right - label_left - text_width) // 2
         text_y = label_top + (label_height + text_height) // 2 - baseline
 
-        cv2.putText(frame_bgr, name, (text_x, text_y), font, font_scale, (255, 255, 255), font_thickness) # White text
+        cv2.putText(frame_bgr, name, (text_x, text_y), font, font_scale, (0, 0, 0), font_thickness)
 
     return frame_bgr
 
 # --- Streamlit UI ---
-st.set_page_config(page_title="SSO Face Recogniser", layout="centered", icon="🕵️‍♂️")
+st.set_page_config(page_title="Dynamic Face Recognition App", layout="centered")
 
 # Initialize session state for page navigation
 if 'page' not in st.session_state:
-    st.session_state.page = 'home'
+    st.session_state.page = 'home' # 'home', 'user_login', 'admin_login'
 
 # --- Home Page ---
-def home_page():
-    st.markdown("<style>div.block-container{padding-top:2rem;}</style>", unsafe_allow_html=True) # Adjust padding
-    
-    col_logo, col_title = st.columns([1, 4])
-    with col_logo:
-        # Use a placeholder image URL or ensure 'sso_logo.jpg' is deployed with the app
-        logo_path = os.path.join(os.path.dirname(__file__), "sso_logo.jpg")
-        if os.path.exists(logo_path):
-            st.image(logo_path, width=100)
-        else:
-            st.image("https://placehold.co/100x100/E0E0E0/333333?text=SSO", width=100) # Placeholder
-            st.warning("Logo image 'sso_logo.jpg' not found. Using a placeholder.")
+if st.session_state.page == 'home':
+    col_left, col_center, col_right = st.columns([1, 2, 1])
 
-    with col_title:
-        st.markdown("<h1 style='text-align: left; color: #333333;'>SSO Consultants Face Recogniser 🕵️‍♂️</h1>", unsafe_allow_html=True)
-    
-    st.markdown("---")
-    st.markdown("<h3 style='text-align: center; color: #555555;'>Welcome! Please choose your login type.</h3>", unsafe_allow_html=True)
+    with col_center:
+        try:
+            # Ensure 'image_f2baca.png' is in the same directory as your app.py
+            st.image("sso_logo.jpg", width=300) 
+        except FileNotFoundError:
+            st.warning("Logo image 'sso_logo.jpg' not found. Please ensure it's in the same directory.")
+            st.markdown("## SSO Consultants")
 
-    st.write("") # Add some space
+    st.markdown("<h2 style='text-align: center;'>SSO Consultants Face Recogniser 🕵‍♂</h2>", unsafe_allow_html=True)
+    st.markdown("<h3 style='text-align: center;'>Please choose your login type.</h3>", unsafe_allow_html=True)
 
-    col_btn1, col_btn2, col_btn3 = st.columns([1, 1, 1])
+    col1_btn, col2_btn, col3_btn, col4_btn = st.columns([1, 0.7, 0.7, 1])
 
-    with col_btn1:
-        if st.button("👥 Login as User", key="user_login_btn", help="Proceed to face recognition for users", use_container_width=True):
+    with col2_btn:
+        if st.button("Login as User", key="user_login_btn", help="Proceed to face recognition for users"):
             st.session_state.page = 'user_login'
             st.rerun()
 
-    with col_btn3:
-        if st.button("⚙️ Login as Admin", key="admin_login_btn", help="Proceed to admin functionalities", use_container_width=True):
+    with col3_btn:
+        if st.button("Login as Admin", key="admin_login_btn", help="Proceed to admin functionalities"):
             st.session_state.page = 'admin_login'
             st.rerun()
-    
-    st.markdown("<div style='text-align: center; margin-top: 50px; color: #777777; font-size: 0.9em;'>Developed with ❤️ using face_recognition, OpenCV, and Streamlit.</div>", unsafe_allow_html=True)
-
 
 # --- User Login (Face Recognition) Page ---
-def user_login_page():
-    st.title("Face Recognition & Detection 📸")
+elif st.session_state.page == 'user_login':
+    st.title("Face Recognition App with Dynamic Labels 🕵‍♂")
     st.markdown("""
-    This application can detect and recognize faces from your live webcam or an uploaded image.
-    Recognized faces will be labeled with their names, while unknown faces will be marked as "Unknown".
+    This application performs face recognition from your live webcam or an uploaded image.
+    The name labels will dynamically adjust their size to fit the recognized name!
     """)
 
     if not known_face_encodings:
-        st.warning("⚠️ No known faces loaded. Face recognition will only detect faces, not identify them. Please ask an admin to add faces.")
+        st.error("No known faces loaded. Please ensure your known_faces directory "
+                 "is correctly structured and contains images with faces for training.")
 
-    st.subheader("Choose Input Method")
-    input_method = st.radio("", ("Live Webcam", "Upload Image"), key="user_input_method", horizontal=True)
+    st.sidebar.header("Choose Input Method")
+    option = st.sidebar.radio("", ("Live Webcam Recognition", "Upload Image for Recognition"), key="user_input_option")
 
-    processed_image_placeholder = st.empty() # Placeholder for the processed image
+    if option == "Live Webcam Recognition":
+        st.subheader("Live Webcam Face Recognition")
+        st.info("Allow camera access. Take a picture, and the app will detect/recognize faces.")
 
-    if input_method == "Live Webcam":
-        st.info("Allow camera access. Click 'Take Photo' to capture an image for processing.")
-        camera_image = st.camera_input("Capture Photo:", key="user_camera_input")
+        camera_image = st.camera_input("Click 'Take Photo' to capture an image:", key="user_camera_input")
 
-        if camera_image:
-            with st.spinner("Processing live image... 🔄"):
-                try:
-                    file_bytes = np.asarray(bytearray(camera_image.read()), dtype=np.uint8)
-                    img_bgr = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
-                    img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
+        if camera_image is not None:
+            with st.spinner("Processing live image..."):
+                file_bytes = np.asarray(bytearray(camera_image.read()), dtype=np.uint8)
+                img_bgr = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
+                img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
 
-                    processed_img_bgr = process_frame_for_faces(img_rgb, known_face_encodings, known_face_names)
-                    processed_img_rgb = cv2.cvtColor(processed_img_bgr, cv2.COLOR_BGR2RGB)
-                    
-                    processed_image_placeholder.image(processed_img_rgb, caption="Processed Live Image", use_column_width=True)
-                    st.success("Face detection and recognition complete! ✨")
-                except Exception as e:
-                    st.error(f"Error processing webcam image: {e}")
-                    logging.error(f"Error in webcam image processing: {e}")
+                processed_img_bgr = process_frame_for_faces(img_rgb, known_face_encodings, known_face_names)
+                processed_img_rgb = cv2.cvtColor(processed_img_bgr, cv2.COLOR_BGR2RGB)
+
+            st.image(processed_img_rgb, caption="Processed Live Image", use_column_width=True)
+            st.success("Face detection and recognition complete!")
         else:
-            processed_image_placeholder.info("Waiting for webcam input. Click 'Capture Photo' above.")
+            st.warning("Waiting for webcam input. Click 'Take Photo' above.")
 
-    elif input_method == "Upload Image":
-        st.info("Upload an image file (JPG, PNG, BMP, GIF) for face detection and recognition.")
+    elif option == "Upload Image for Recognition":
+        st.subheader("Upload Image for Face Recognition")
         uploaded_file = st.file_uploader("Choose an image file:", type=["jpg", "jpeg", "png", "bmp", "gif"], key="user_file_uploader")
 
-        if uploaded_file:
-            with st.spinner("Loading and processing image... ⏳"):
-                try:
-                    file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
-                    img_bgr = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
-                    img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
+        if uploaded_file is not None:
+            with st.spinner("Loading and processing image..."):
+                file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
+                img_bgr = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
+                img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
 
-                    # Display original image first
-                    st.image(img_rgb, caption="Original Uploaded Image", use_column_width=True)
+                st.image(img_rgb, caption="Original Uploaded Image", use_column_width=True)
 
-                    processed_img_bgr = process_frame_for_faces(img_rgb, known_face_encodings, known_face_names)
-                    processed_img_rgb = cv2.cvtColor(processed_img_bgr, cv2.COLOR_BGR2RGB)
-                    
-                    processed_image_placeholder.image(processed_img_rgb, caption="Processed Image with Faces", use_column_width=True)
-                    st.success("Face detection and recognition complete! ✨")
-                except Exception as e:
-                    st.error(f"Error processing uploaded image: {e}")
-                    logging.error(f"Error in uploaded image processing: {e}")
+                processed_img_bgr = process_frame_for_faces(img_rgb, known_face_encodings, known_face_names)
+                processed_img_rgb = cv2.cvtColor(processed_img_bgr, cv2.COLOR_BGR2RGB)
+
+            st.image(processed_img_rgb, caption="Processed Image with Faces", use_column_width=True)
+            st.success("Face detection and recognition complete!")
         else:
-            processed_image_placeholder.info("Please upload an image file.")
+            st.info("Please upload an image file using the browser button.")
 
-    st.markdown("---")
-    if st.button("⬅️ Back to Home", key="user_back_btn"):
+    if st.button("⬅ Back to Home", key="user_back_btn"):
         st.session_state.page = 'home'
         st.rerun()
 
-# --- Admin Login Page ---
-def admin_login_page():
+# --- Admin Login Page (Placeholder) ---
+elif st.session_state.page == 'admin_login':
     st.title("Admin Panel 🔒")
-    st.markdown("This section is for **administrators** only.")
+    st.markdown("This section is for *administrators* only.")
 
-    if 'admin_logged_in' not in st.session_state:
-        st.session_state.admin_logged_in = False
+    admin_password = st.text_input("Enter Admin Password:", type="password", key="admin_pass_input")
 
-    if not st.session_state.admin_logged_in:
-        admin_password_input = st.text_input("Enter Admin Password:", type="password", key="admin_pass_input")
-        if st.button("Login", key="admin_login_btn_submit"):
-            if admin_password_input == ADMIN_PASSWORD:
-                st.session_state.admin_logged_in = True
-                st.success("Welcome, Admin! 🎉")
-                st.rerun() # Rerun to show admin features
-            else:
-                st.error("Incorrect password. ❌")
-    
-    if st.session_state.admin_logged_in:
+    if admin_password == "admin123": # *IMPORTANT: Replace with a more secure authentication method for production!*
+        st.success("Welcome, Admin!")
+
         st.subheader("Add New Faces to Database ➕")
-        st.markdown("Upload an image of a person and provide a name for recognition. Ensure the image clearly shows one face.")
+        st.markdown("Upload an image of a person and provide a name for recognition.")
 
         new_face_name = st.text_input("Enter Name/Description for the Face:", key="new_face_name_input")
         new_face_image = st.file_uploader("Upload Image of New Face:", type=["jpg", "jpeg", "png"], key="new_face_image_uploader")
 
-        if st.button("Add Face to Database", key="add_face_btn", use_container_width=True):
+        if st.button("Add Face to Database", key="add_face_btn"):
             if new_face_name and new_face_image:
-                with st.spinner(f"Adding '{new_face_name}' to database... 🚀"):
-                    try:
-                        # Convert uploaded file to numpy array for face_recognition
-                        file_bytes = np.asarray(bytearray(new_face_image.read()), dtype=np.uint8)
-                        img_bgr = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
-                        img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
+                person_dir = os.path.join(KNOWN_FACES_DIR, new_face_name.replace(" ", "_").lower()) # Create a clean directory name
+                os.makedirs(person_dir, exist_ok=True) # Create directory if it doesn't exist
 
-                        # Check if a face is present in the new image
-                        face_locations_new_face = face_recognition.face_locations(img_rgb)
-                        if not face_locations_new_face:
-                            st.warning("No face detected in the uploaded image. Please upload an image with a clear face.")
-                            logging.warning(f"No face detected in uploaded image for {new_face_name}.")
-                            st.stop() # Stop further execution for this button click
+                # Save the image
+                # Generate a unique filename to avoid overwriting
+                image_filename = f"{new_face_name.replace(' ', '').lower()}{len(os.listdir(person_dir)) + 1}.jpg"
+                image_path = os.path.join(person_dir, image_filename)
 
-                        # Generate a more unique filename to prevent collisions
-                        timestamp = int(cv2.getTickCount() / cv2.getTickFrequency() * 1000)
-                        clean_name = new_face_name.replace(' ', '_').lower().replace('/', '_').replace('\\', '_')
-                        image_filename = f"known_faces/{clean_name}_{timestamp}.jpg"
-                        
-                        # Upload the image to Firebase Storage
-                        # Reset file pointer before re-reading for upload_from_file
-                        new_face_image.seek(0) 
-                        blob = bucket.blob(image_filename)
-                        blob.upload_from_file(new_face_image)
-                        logging.info(f"Uploaded image to Firebase Storage: {image_filename}")
+                # Use PIL to save the image to ensure consistent format
+                img = Image.open(new_face_image).convert("RGB")
+                img.save(image_path, "JPEG") # Save as JPEG
 
-                        # Save the image path and name to Firestore
-                        app_id_for_firestore = os.getenv('STREAMLIT_APP_ID', 'default-streamlit-app-id')
-                        db.collection(f'artifacts/{app_id_for_firestore}/public/data/known_faces').add({
-                            'name': new_face_name,
-                            'image_path': image_filename # Store the path in Firestore
-                        })
-                        logging.info(f"Added entry to Firestore for: {new_face_name}")
+                st.info(f"Analyzing {new_face_name}'s image...")
 
-                        # Clear the cache and reload known faces to include the new entry
-                        load_known_faces_from_firestore.clear()
-                        # IMPORTANT: Re-assign to the module-level variables without 'global' in this scope
-                        # The variables are already global, this re-assigns their values.
-                        global known_face_encodings, known_face_names # This is still needed because known_face_encodings and known_face_names are reassigned here.
-                        known_face_encodings, known_face_names = load_known_faces_from_firestore()
+                try:
+                    # Verify face can be encoded
+                    image_to_encode = face_recognition.load_image_file(image_path)
+                    face_locations = face_recognition.face_locations(image_to_encode)
+
+                    if face_locations:
+                        # Clear the cache for load_known_faces to force a reload
+                        load_known_faces.clear()
+
+                        # Re-load known faces; this will update the global lists
+                        # The 'global' keyword is NOT needed here because known_face_encodings
+                        # and known_face_names are already global variables at the module level.
+                        known_face_encodings, known_face_names = load_known_faces(KNOWN_FACES_DIR, _=np.random.rand())
 
                         st.success(f"Successfully added '{new_face_name}' to the known faces database! ✅")
-                        st.balloons() # Visual feedback
-                        st.rerun() # Rerun to update the "Current Known Faces" list
-                    except Exception as e:
-                        st.error(f"Error adding face: {e}")
-                        logging.error(f"Error adding face for {new_face_name}: {e}")
+                        st.rerun() # Rerun to refresh the UI and known faces list
+                    else:
+                        st.error(f"No face found in the uploaded image for '{new_face_name}'. Please upload an image with a clear face.")
+                        # Clean up the empty directory or file if no face was found
+                        if os.path.exists(image_path):
+                            os.remove(image_path)
+                        if not os.listdir(person_dir): # Remove directory if it's empty after failed add
+                            os.rmdir(person_dir)
+
+                except Exception as e:
+                    st.error(f"Error processing image for '{new_face_name}': {e}")
+                    # Clean up if an error occurred during processing
+                    if os.path.exists(image_path):
+                        os.remove(image_path)
+                    if not os.listdir(person_dir): # Remove directory if it's empty after failed add
+                        os.rmdir(person_dir)
+
             else:
-                st.warning("Please provide both a name and upload an image. 📝")
+                st.warning("Please provide both a name and upload an image.")
 
         st.subheader("Current Known Faces 📋")
         if known_face_names:
-            # Display unique names and provide delete option
-            unique_names = sorted(list(set(known_face_names)))
-            for name in unique_names:
-                col_name, col_delete = st.columns([3, 1])
-                with col_name:
-                    st.write(f"- **{name}**")
-                with col_delete:
-                    if st.button("Delete", key=f"delete_btn_{name}"):
-                        if st.warning(f"Are you sure you want to delete ALL entries for '{name}'?"):
-                            # This is a simple confirmation. For critical ops, use a custom modal.
-                            # In Streamlit, a simple way is to ask for re-confirmation
-                            st.session_state[f'confirm_delete_{name}'] = True
-                            st.rerun() # Rerun to show confirmation button
-                        
-                        if st.session_state.get(f'confirm_delete_{name}', False):
-                            if st.button(f"Confirm Delete '{name}'", key=f"confirm_delete_btn_{name}"):
-                                with st.spinner(f"Deleting all entries for '{name}'..."):
-                                    try:
-                                        app_id_for_firestore = os.getenv('STREAMLIT_APP_ID', 'default-streamlit-app-id')
-                                        faces_to_delete_ref = db.collection(f'artifacts/{app_id_for_firestore}/public/data/known_faces').where('name', '==', name).stream()
-                                        
-                                        deleted_count = 0
-                                        for doc_to_delete in faces_to_delete_ref:
-                                            data_to_delete = doc_to_delete.to_dict()
-                                            image_path_to_delete = data_to_delete.get('image_path')
-                                            
-                                            # Delete from Storage
-                                            if image_path_to_delete:
-                                                try:
-                                                    blob_to_delete = bucket.blob(image_path_to_delete)
-                                                    blob_to_delete.delete()
-                                                    logging.info(f"Deleted image from Storage: {image_path_to_delete}")
-                                                except Exception as storage_e:
-                                                    logging.warning(f"Could not delete image {image_path_to_delete} from Storage: {storage_e}")
-                                                    st.warning(f"Could not delete image for '{name}' from Storage.")
-
-                                            # Delete from Firestore
-                                            db.collection(f'artifacts/{app_id_for_firestore}/public/data/known_faces').document(doc_to_delete.id).delete()
-                                            deleted_count += 1
-                                            logging.info(f"Deleted Firestore document: {doc_to_delete.id}")
-                                        
-                                        load_known_faces_from_firestore.clear()
-                                        
-                                        known_face_encodings, known_face_names = load_known_faces_from_firestore()
-                                        
-                                        st.success(f"Successfully deleted {deleted_count} entries for '{name}'. ✅")
-                                        del st.session_state[f'confirm_delete_{name}'] # Clear confirmation state
-                                        st.rerun()
-                                    except Exception as e:
-                                        st.error(f"Error deleting entries for '{name}': {e}")
-                                        logging.error(f"Error deleting entries for '{name}': {e}")
-                            else:
-                                st.info("Deletion cancelled.")
-                                del st.session_state[f'confirm_delete_{name}'] # Clear confirmation state
-                                st.rerun() # Rerun to remove confirmation button
+            # Display current known faces with names
+            # Using sorted(set(...)) to display unique names alphabetically
+            for name in sorted(set(known_face_names)): 
+                st.write(f"- *{name}*")
         else:
-            st.info("No faces currently registered in the database. 🤷‍♀️")
+            st.info("No faces currently registered in the database.")
 
-    st.markdown("---")
-    if st.button("⬅️ Back to Home", key="admin_back_btn"):
-        st.session_state.admin_logged_in = False # Log out admin on going back
+
+    else:
+        if admin_password: # Only show error if user actually typed something
+            st.error("Incorrect password.")
+
+    if st.button("⬅ Back to Home", key="admin_back_btn"):
         st.session_state.page = 'home'
         st.rerun()
 
-# --- Main App Logic ---
-if st.session_state.page == 'home':
-    home_page()
-elif st.session_state.page == 'user_login':
-    user_login_page()
-elif st.session_state.page == 'admin_login':
-    admin_login_page()
+st.markdown("---")
+st.markdown("Developed with ❤ using face_recognition, OpenCV, and Streamlit.")
