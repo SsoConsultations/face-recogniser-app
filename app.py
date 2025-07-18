@@ -161,26 +161,27 @@ if st.session_state.page == 'home':
     # Use a single column to align all content to the left by default
     # Or use st.container() if you want a block without explicit columns
     
-    # Removed centering from logo and headings
     try:
         st.image("sso_logo.jpg", width=150) # Logo size from last request
     except FileNotFoundError:
         st.warning("Logo image 'sso_logo.jpg' not found. Please ensure it's in the same directory.")
         st.markdown("## SSO Consultants") 
 
-    # Removed 'text-align: center;' from headings for left alignment
     st.markdown("<h3 style='margin-bottom: 0px;'>SSO Consultants Face Recogniser 🕵️‍♂️</h3>", unsafe_allow_html=True)
     st.markdown("<p style='margin-top: 5px; margin-bottom: 20px; font-size:1.1em;'>Please choose your login type.</p>", unsafe_allow_html=True)
 
-    # Use a single column for buttons to stack them on the left,
-    # or use very narrow columns for side-by-side on the left.
-    # For a clean left alignment, stacking them might be better than side-by-side with wide gaps.
-    # Let's try to stack them.
-    # If side-by-side is preferred, you'd use col1, col2 = st.columns([width_for_btn1, width_for_btn2, rest_empty_space])
-    
-    # Example for stacking buttons left-aligned:
-    st.button("Login as User", key="user_login_btn", help="Proceed to face recognition for users")
-    st.button("Login as Admin", key="admin_login_btn", help="Proceed to admin functionalities")
+    # --- Buttons on one line ---
+    col1_btn, col2_btn = st.columns([0.2, 0.2]) # Adjust column ratios to control spacing and alignment
+
+    with col1_btn:
+        if st.button("Login as User", key="user_login_btn", help="Proceed to face recognition for users"):
+            st.session_state.page = 'user_auth' 
+            st.rerun()
+
+    with col2_btn:
+        if st.button("Login as Admin", key="admin_login_btn", help="Proceed to admin functionalities"):
+            st.session_state.page = 'admin_auth' 
+            st.rerun()
 
 
 # --- User Authentication Page ---
