@@ -284,9 +284,9 @@ elif st.session_state.page == 'user_recognition':
 
         st.markdown("---")
         if st.button("⬅ Log Out", key="user_logout_sidebar_btn"): # Logout button in sidebar
-                 st.session_state.logged_in_as_user = False
-                 st.session_state.page = 'home'
-                 st.rerun()
+                st.session_state.logged_in_as_user = False
+                st.session_state.page = 'home'
+                st.rerun()
 
     if option == "Live Webcam Recognition":
         st.subheader("Live Webcam Face Recognition")
