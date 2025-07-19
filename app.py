@@ -484,7 +484,7 @@ elif st.session_state.page == 'admin_panel':
             import pandas as pd
             display_data = []
             for doc in known_face_docs:
-                display_data.append()
+                display_data.append({
                     "Name": doc.get("name", "N/A"),
                     "Age": doc.get("age", "N/A"),
                     "Height": doc.get("height", "N/A"),
