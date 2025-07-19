@@ -356,8 +356,8 @@ elif st.session_state.page == 'admin_panel':
 
     new_face_name = st.text_input("Enter Name/Description for the Face:", key="new_face_name_input")
     # New input fields for Age and Height
-    new_face_age = st.number_input("Enter Age (optional):", min_value=0, max_value=150, value=None, format="%d", key="new_face_age_input")
-    new_face_height = st.text_input("Enter Height (e.g., 5'10\" or 178cm) (optional):", key="new_face_height_input")
+    new_face_age = st.number_input("Enter Age:", min_value=0, max_value=150, value=None, format="%d", key="new_face_age_input")
+    new_face_height = st.text_input("Enter Height (e.g., 5'10\" or 178cm):", key="new_face_height_input")
     
     new_face_image = st.file_uploader("Upload Image of New Face:", 
                                      type=["jpg", "jpeg", "png"], 
