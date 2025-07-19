@@ -17,7 +17,7 @@ if 'db' not in st.session_state or 'bucket' not in st.session_state:
         if not firebase_admin._apps:
             cred = credentials.Certificate(firebase_credentials_dict)
             firebase_admin.initialize_app(cred, {
-                'storageBucket': st.secrets["firebase"]["storage_bucket'] 
+                'storageBucket': st.secrets["firebase"]["storage_bucket"] 
             })
         
         st.session_state.db = firestore.client()
