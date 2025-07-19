@@ -17,7 +17,7 @@ if 'db' not in st.session_state or 'bucket' not in st.session_state:
         if not firebase_admin._apps:
             cred = credentials.Certificate(firebase_credentials_dict)
             firebase_admin.initialize_app(cred, {
-                'storageBucket': st.secrets["firebase"]["storage_bucket"] 
+                'storageBucket': st.secrets["firebase"]["storage_bucket"]
             })
         
         st.session_state.db = firestore.client()
@@ -31,12 +31,12 @@ FIRESTORE_COLLECTION_NAME = st.secrets["firebase"]["firestore_collection"]
 STORAGE_KNOWN_FACES_FOLDER = "known_faces_images"
 
 # --- Data Loading Function (Cached for performance) ---
-@st.cache_resource(ttl=3600) 
-def load_known_faces_from_firebase(_=None): 
+@st.cache_resource(ttl=3600)
+def load_known_faces_from_firebase(_=None):
     known_face_encodings_local = []
     known_face_names_local = []
-    known_face_details_local = [] 
-    known_face_docs_local = [] 
+    known_face_details_local = []
+    known_face_docs_local = []
 
     try:
         docs = st.session_state.db.collection(FIRESTORE_COLLECTION_NAME).stream()
@@ -53,8 +53,8 @@ def load_known_faces_from_firebase(_=None):
                 known_face_names_local.append(name)
                 known_face_details_local.append({
                     "doc_id": doc.id,
-                    "name": name, 
-                    "age": age, 
+                    "name": name,
+                    "age": age,
                     "height": height,
                     "image_storage_path": image_storage_path
                 })
@@ -80,7 +80,7 @@ def process_frame_for_faces(frame_rgb, known_encodings, known_names, known_detai
 
     frame_bgr = cv2.cvtColor(frame_rgb_copy, cv2.COLOR_RGB2BGR)
 
-    detected_face_info = [] 
+    detected_face_info = []
 
     if not face_locations:
         if 'detected_faces_sidebar_info' in st.session_state:
@@ -88,10 +88,10 @@ def process_frame_for_faces(frame_rgb, known_encodings, known_names, known_detai
         return frame_bgr, []
 
     for (top, right, bottom, left), face_encoding in zip(face_locations, face_encodings):
-        name_on_image = "Unknown" 
+        name_on_image = "Unknown"
         current_face_details = {"name": "Unknown", "age": "N/A", "height": "N/A"}
         
-        if known_encodings: 
+        if known_encodings:
             matches = face_recognition.compare_faces(known_encodings, face_encoding)
             face_distances = face_recognition.face_distance(known_encodings, face_encoding)
             
@@ -103,10 +103,10 @@ def process_frame_for_faces(frame_rgb, known_encodings, known_names, known_detai
                 age = matched_person_details.get("age", "N/A")
                 height = matched_person_details.get("height", "N/A")
                 
-                name_on_image = f"Name: {name}" 
+                name_on_image = f"Name: {name}"
                 current_face_details = {"name": name, "age": age, "height": height}
             else:
-                if face_distances[best_match_index] < 0.6: 
+                if face_distances[best_match_index] < 0.6:
                     matched_person_details = known_details[best_match_index]
                     name = matched_person_details.get("name", "N/A")
                     age = matched_person_details.get("age", "N/A")
@@ -123,17 +123,17 @@ def process_frame_for_faces(frame_rgb, known_encodings, known_names, known_detai
         face_width = right - left
         face_height = bottom - top
         
-        base_font_size = 0.002 
-        base_thickness = 0.005 
+        base_font_size = 0.002
+        base_thickness = 0.005
         
         min_font_scale = 0.5
         min_thickness = 1
         
         font_scale = max(min_font_scale, base_font_size * face_width)
         font_thickness = max(min_thickness, int(base_thickness * face_width))
-        line_thickness = max(2, int(face_width * 0.01)) 
+        line_thickness = max(2, int(face_width * 0.01))
 
-        box_padding_factor = 0.1 
+        box_padding_factor = 0.1
         box_padding_x = int(face_width * box_padding_factor)
         box_padding_y = int(face_height * box_padding_factor)
 
@@ -148,8 +148,8 @@ def process_frame_for_faces(frame_rgb, known_encodings, known_names, known_detai
         
         (text_width, text_height), baseline = cv2.getTextSize(name_on_image, font, font_scale, font_thickness)
         
-        label_padding_x = int(text_width * 0.1) 
-        label_padding_y = int(text_height * 0.3) 
+        label_padding_x = int(text_width * 0.1)
+        label_padding_y = int(text_height * 0.3)
 
         label_width = text_width + (label_padding_x * 2)
         label_height = text_height + (label_padding_y * 2)
@@ -157,7 +157,7 @@ def process_frame_for_faces(frame_rgb, known_encodings, known_names, known_detai
         label_top = bottom_ext
         label_bottom = label_top + label_height
         label_left = left_ext
-        label_right = max(right_ext, left_ext + label_width) 
+        label_right = max(right_ext, left_ext + label_width)
 
         if label_bottom > frame_bgr.shape[0]:
             label_bottom = frame_bgr.shape[0]
@@ -178,40 +178,43 @@ def process_frame_for_faces(frame_rgb, known_encodings, known_names, known_detai
     return frame_bgr, detected_face_info
 
 # --- Streamlit UI Layout ---
-st.set_page_config(page_title="Dynamic Face Recognition App", layout="centered", initial_sidebar_state="expanded") 
+st.set_page_config(page_title="Dynamic Face Recognition App", layout="centered", initial_sidebar_state="expanded")
 
 if 'page' not in st.session_state:
     st.session_state.page = 'home'
-if 'logged_in_as_user' not in st.session_state: 
+if 'logged_in_as_user' not in st.session_state:
     st.session_state.logged_in_as_user = False
-if 'logged_in_as_admin' not in st.session_state: 
+if 'logged_in_as_admin' not in st.session_state:
     st.session_state.logged_in_as_admin = False
 if 'detected_faces_sidebar_info' not in st.session_state:
     st.session_state.detected_faces_sidebar_info = []
+# New session state for deletion confirmation
+if 'confirm_delete_doc_id' not in st.session_state:
+    st.session_state.confirm_delete_doc_id = None
 
 
 # --- Home Page ---
 if st.session_state.page == 'home':
     
     try:
-        st.image("sso_logo.jpg", width=150) 
+        st.image("sso_logo.jpg", width=150)
     except FileNotFoundError:
         st.warning("Logo image 'sso_logo.jpg' not found. Please ensure it's in the same directory.")
-        st.markdown("## SSO Consultants") 
+        st.markdown("## SSO Consultants")
 
     st.markdown("<h3 style='margin-bottom: 0px;'>SSO Consultants Face Recogniser 🕵️‍♂️</h3>", unsafe_allow_html=True)
     st.markdown("<p style='margin-top: 5px; margin-bottom: 20px; font-size:1.1em;'>Please choose your login type.</p>", unsafe_allow_html=True)
 
-    col1_btn, col2_btn = st.columns([0.2, 0.2]) 
+    col1_btn, col2_btn = st.columns([0.2, 0.2])
 
     with col1_btn:
         if st.button("Login as User", key="user_login_btn", help="Proceed to face recognition for users"):
-            st.session_state.page = 'user_auth' 
+            st.session_state.page = 'user_auth'
             st.rerun()
 
     with col2_btn:
         if st.button("Login as Admin", key="admin_login_btn", help="Proceed to admin functionalities"):
-            st.session_state.page = 'admin_auth' 
+            st.session_state.page = 'admin_auth'
             st.rerun()
 
 
@@ -263,7 +266,7 @@ elif st.session_state.page == 'user_recognition':
 
     with st.sidebar:
         try:
-            st.image("sso_logo.jpg", width=150) 
+            st.image("sso_logo.jpg", width=150)
         except FileNotFoundError:
             st.warning("Logo image 'sso_logo.jpg' not found in sidebar.")
         st.markdown("---")
@@ -275,7 +278,7 @@ elif st.session_state.page == 'user_recognition':
         
         if st.session_state.detected_faces_sidebar_info:
             for i, face_detail in enumerate(st.session_state.detected_faces_sidebar_info):
-                st.markdown(f"### Name: **{face_detail.get('name', 'Unknown')}**") 
+                st.markdown(f"### Name: **{face_detail.get('name', 'Unknown')}**")
                 if face_detail.get('age') != "N/A":
                     st.write(f"**Age:** {face_detail.get('age', 'N/A')}")
                 if face_detail.get('height') != "N/A":
@@ -382,13 +385,13 @@ elif st.session_state.page == 'admin_panel':
 
     with st.sidebar:
         try:
-            st.image("sso_logo.jpg", width=150) 
+            st.image("sso_logo.jpg", width=150)
         except FileNotFoundError:
             st.warning("Logo image 'sso_logo.jpg' not found in sidebar.")
         st.markdown("---")
         st.header("Admin Actions")
-        admin_option = st.radio("Choose an action:", 
-                                ("Add New Face", "View/Update Database"), 
+        admin_option = st.radio("Choose an action:",
+                                ("Add New Face", "View/Update Database"),
                                 key="admin_action_radio")
         st.markdown("---")
         st.header("Faces in Database")
@@ -414,9 +417,9 @@ elif st.session_state.page == 'admin_panel':
         new_face_age = st.number_input("Enter Age (optional):", min_value=0, max_value=150, value=None, format="%d", key="new_face_age_input")
         new_face_height = st.text_input("Enter Height (e.g., 5'10\" or 178cm) (optional):", key="new_face_height_input")
         
-        new_face_image = st.file_uploader("Upload Image of New Face:", 
-                                         type=["jpg", "jpeg", "png"], 
-                                         key="new_face_image_uploader")
+        new_face_image = st.file_uploader("Upload Image of New Face:",
+                                            type=["jpg", "jpeg", "png"],
+                                            key="new_face_image_uploader")
 
         if st.button("Add Face to Database", key="add_face_btn"):
             if new_face_name and new_face_image:
@@ -440,9 +443,9 @@ elif st.session_state.page == 'admin_panel':
                             blob.upload_from_string(img_byte_arr, content_type='image/jpeg')
                             st.info(f"Image uploaded to Storage: {storage_path}")
 
-                            face_encoding_list = face_encodings[0].tolist() 
+                            face_encoding_list = face_encodings[0].tolist()
                             
-                            doc_ref = st.session_state.db.collection(FIRESTORE_COLLECTION_NAME).document() 
+                            doc_ref = st.session_state.db.collection(FIRESTORE_COLLECTION_NAME).document()
                             doc_data = {
                                 "name": new_face_name,
                                 "encoding": face_encoding_list,
@@ -457,7 +460,7 @@ elif st.session_state.page == 'admin_panel':
                             doc_ref.set(doc_data)
 
                             load_known_faces_from_firebase.clear()
-                            known_face_encodings, known_face_names, known_face_details, known_face_docs = load_known_faces_from_firebase(_=np.random.rand()) 
+                            known_face_encodings, known_face_names, known_face_details, known_face_docs = load_known_faces_from_firebase(_=np.random.rand())
                             
                             st.success(f"Successfully added '{new_face_name}' to the known faces database! ✅")
                             st.balloons()
@@ -492,7 +495,7 @@ elif st.session_state.page == 'admin_panel':
 
             df["Age"] = df["Age"].astype(str) # Convert to string
             st.dataframe(
-                df, 
+                df,
                 use_container_width=True,
                 column_config={
                     "Age": st.column_config.TextColumn("Age", width="small"), # Treat as text
@@ -530,8 +533,8 @@ elif st.session_state.page == 'admin_panel':
                 updated_name = st.text_input("New Name:", value=selected_doc.get("name", ""), key=f"update_name_{selected_doc_id}")
                 updated_age = st.number_input("New Age (optional):", min_value=0, max_value=150, value=selected_doc.get("age"), format="%d", key=f"update_age_{selected_doc_id}")
                 updated_height = st.text_input("New Height (optional):", value=selected_doc.get("height", ""), key=f"update_height_{selected_doc_id}")
-                re_upload_image = st.file_uploader("Re-upload Image (optional, will replace current image):", 
-                                                    type=["jpg", "jpeg", "png"], 
+                re_upload_image = st.file_uploader("Re-upload Image (optional, will replace current image):",
+                                                    type=["jpg", "jpeg", "png"],
                                                     key=f"re_upload_image_{selected_doc_id}")
 
                 col_update, col_delete = st.columns(2)
@@ -594,31 +597,57 @@ elif st.session_state.page == 'admin_panel':
                                 st.error(f"Error updating face: {e}")
                                 
                 with col_delete:
-                    # Added a "Confirm Delete" step for safety
+                    # Logic for deletion confirmation
                     if st.button(f"Delete {selected_doc.get('name', 'Unnamed')}", key=f"delete_btn_{selected_doc_id}"):
-                        st.warning("Are you sure you want to delete this entry? This action is irreversible.")
-                        if st.button("Confirm Delete", key=f"confirm_delete_{selected_doc_id}"):
-                            with st.spinner(f"Deleting {selected_doc.get('name', 'Unnamed')}..."):
-                                try:
-                                    if selected_doc.get("image_storage_path"):
-                                        try:
-                                            blob = st.session_state.bucket.blob(selected_doc["image_storage_path"])
-                                            if blob.exists():
-                                                blob.delete()
-                                                st.info(f"Deleted image from Storage: {selected_doc['image_storage_path']}")
-                                        except Exception as e:
-                                            st.warning(f"Could not delete image from storage: {e}")
+                        # Set the session state to indicate confirmation is pending for this doc_id
+                        st.session_state.confirm_delete_doc_id = selected_doc_id
+                        st.rerun() # Rerun to show the confirmation prompt immediately
 
-                                    st.session_state.db.collection(FIRESTORE_COLLECTION_NAME).document(selected_doc_id).delete()
+                    # Only show the confirmation prompt if this specific doc_id is pending confirmation
+                    if st.session_state.confirm_delete_doc_id == selected_doc_id:
+                        st.warning(f"Are you sure you want to delete '{selected_doc.get('name', 'Unnamed')}'? This action is irreversible.")
+                        
+                        col_confirm, col_cancel = st.columns(2)
+                        with col_confirm:
+                            if st.button("Confirm Delete", key=f"confirm_delete_action_{selected_doc_id}"):
+                                with st.spinner(f"Deleting {selected_doc.get('name', 'Unnamed')}..."):
+                                    try:
+                                        if selected_doc.get("image_storage_path"):
+                                            try:
+                                                blob = st.session_state.bucket.blob(selected_doc["image_storage_path"])
+                                                if blob.exists():
+                                                    blob.delete()
+                                                    st.info(f"Deleted image from Storage: {selected_doc['image_storage_path']}")
+                                            except Exception as e:
+                                                st.warning(f"Could not delete image from storage: {e}")
 
-                                    load_known_faces_from_firebase.clear()
-                                    known_face_encodings, known_face_names, known_face_details, known_face_docs = load_known_faces_from_firebase(_=np.random.rand())
+                                        st.session_state.db.collection(FIRESTORE_COLLECTION_NAME).document(selected_doc_id).delete()
 
-                                    st.success(f"Successfully deleted '{selected_doc.get('name', 'Unnamed')}'! 🗑️")
-                                    st.rerun()
+                                        # Clear the confirmation state
+                                        st.session_state.confirm_delete_doc_id = None
+                                        load_known_faces_from_firebase.clear()
+                                        known_face_encodings, known_face_names, known_face_details, known_face_docs = load_known_faces_from_firebase(_=np.random.rand())
 
-                                except Exception as e:
-                                    st.error(f"Error deleting face: {e}")
+                                        st.success(f"Successfully deleted '{selected_doc.get('name', 'Unnamed')}'! 🗑️")
+                                        st.rerun()
+
+                                    except Exception as e:
+                                        st.error(f"Error deleting face: {e}")
+                                        # Clear confirmation state even on error to allow retrying or selecting other items
+                                        st.session_state.confirm_delete_doc_id = None
+                                        st.rerun()
+                        with col_cancel:
+                            if st.button("Cancel", key=f"cancel_delete_action_{selected_doc_id}"):
+                                st.session_state.confirm_delete_doc_id = None # Clear confirmation state
+                                st.info("Deletion cancelled.")
+                                st.rerun()
+            else:
+                # If a different item is selected or no item is selected, clear any pending confirmation
+                # This handles cases where user selects 'A', sees confirm, then selects 'B'
+                if st.session_state.confirm_delete_doc_id is not None and st.session_state.confirm_delete_doc_id != selected_doc_id:
+                    st.session_state.confirm_delete_doc_id = None
+                    st.rerun() # Rerun to clear the old confirmation prompt if it was visible
+
 
 st.markdown("---")
 st.markdown("SSO Consultants Face Recognition Tool © 2025 | All Rights Reserved.")
