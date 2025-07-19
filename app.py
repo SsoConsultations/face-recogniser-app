@@ -429,4 +429,3 @@ elif st.session_state.page == 'admin_panel':
         st.rerun()
 
 st.markdown("---")
-st.markdown("Developed with ❤️ using `face_recognition`, `OpenCV`, `Streamlit`, and `Firebase`.")
