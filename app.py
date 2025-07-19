@@ -210,7 +210,7 @@ if st.session_state.page == 'home':
         st.warning("Logo image 'sso_logo.jpg' not found. Please ensure it's in the same directory.")
         st.markdown("## SSO Consultants") 
 
-    st.markdown("<h3 style='margin-bottom: 0px;'>SSO Consultants Face Recogniser</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 style='margin-bottom: 0px;'>SSO Consultants Face Recogniser 🕵️‍♂️</h3>", unsafe_allow_html=True)
     st.markdown("<p style='margin-top: 5px; margin-bottom: 20px; font-size:1.1em;'>Please choose your login type.</p>", unsafe_allow_html=True)
 
     col1_btn, col2_btn = st.columns([0.2, 0.2]) 
@@ -228,7 +228,15 @@ if st.session_state.page == 'home':
 
 # --- User Authentication Page ---
 elif st.session_state.page == 'user_auth':
-    st.title("User Login")
+    # Add logo to sidebar for User Login page
+    with st.sidebar:
+        try:
+            st.image("sso_logo.jpg", width=100) # Adjust width as needed for sidebar
+        except FileNotFoundError:
+            st.warning("Logo image 'sso_logo.jpg' not found in sidebar.")
+        st.markdown("---") # Optional: Separator in sidebar
+
+    st.title("User Login 👤")
     st.markdown("Please enter your **username** and **password** to proceed to face recognition.")
 
     user_username_input = st.text_input("Username:", key="user_username_input")
@@ -245,7 +253,7 @@ elif st.session_state.page == 'user_auth':
                     break
         
         if authenticated:
-            st.success("User login successful! Redirecting to Face Recognition...")
+            st.success("User login successful! Redirecting to Face Recognition... 🎉")
             st.session_state.logged_in_as_user = True
             st.session_state.page = 'user_recognition'
             st.rerun()
@@ -263,7 +271,7 @@ elif st.session_state.page == 'user_recognition':
         st.session_state.page = 'user_auth'
         st.rerun()
 
-    st.title("Face Recognition App with Dynamic Labels")
+    st.title("Face Recognition App with Dynamic Labels 🕵️‍♂️")
     st.markdown("""
     This application performs face recognition from your live webcam or an uploaded image.
     The name labels will dynamically adjust their size to fit the recognized name and display additional details!
@@ -320,7 +328,15 @@ elif st.session_state.page == 'user_recognition':
 
 # --- Admin Authentication Page ---
 elif st.session_state.page == 'admin_auth':
-    st.title("Admin Login")
+    # Add logo to sidebar for Admin Login page
+    with st.sidebar:
+        try:
+            st.image("sso_logo.jpg", width=100) # Adjust width as needed for sidebar
+        except FileNotFoundError:
+            st.warning("Logo image 'sso_logo.jpg' not found in sidebar.")
+        st.markdown("---") # Optional: Separator in sidebar
+
+    st.title("Admin Login 🔒")
     st.markdown("Please enter your **admin username** and **password**.")
 
     admin_username_input = st.text_input("Admin Username:", key="admin_username_input")
@@ -329,7 +345,7 @@ elif st.session_state.page == 'admin_auth':
     if st.button("Login", key="submit_admin_login"):
         if admin_username_input == st.secrets["admin"]["username"] and \
            admin_password_input == st.secrets["admin"]["password"]:
-            st.success("Admin login successful! Redirecting to Admin Panel...")
+            st.success("Admin login successful! Redirecting to Admin Panel... 🎉")
             st.session_state.logged_in_as_admin = True
             st.session_state.page = 'admin_panel'
             st.rerun()
@@ -346,11 +362,20 @@ elif st.session_state.page == 'admin_panel':
         st.warning("Please log in as an admin to access this page.")
         st.session_state.page = 'admin_auth'
         st.rerun()
+    
+    # Add logo to sidebar for Admin Panel page
+    with st.sidebar:
+        try:
+            st.image("sso_logo.jpg", width=100) # Adjust width as needed for sidebar
+        except FileNotFoundError:
+            st.warning("Logo image 'sso_logo.jpg' not found in sidebar.")
+        st.markdown("---") # Optional: Separator in sidebar
 
-    st.title("Admin Panel")
+
+    st.title("Admin Panel 🔒")
     st.markdown("This section is for **administrators** only.")
 
-    st.subheader("Add New Face to Database")
+    st.subheader("Add New Face to Database ➕")
     st.markdown("Upload an image of a person and provide a name and details for recognition.")
 
     new_face_name = st.text_input("Enter Name/Description for the Face:", key="new_face_name_input")
@@ -402,7 +427,7 @@ elif st.session_state.page == 'admin_panel':
                         load_known_faces_from_firebase.clear()
                         known_face_encodings, known_face_names, known_face_details = load_known_faces_from_firebase(_=np.random.rand()) 
                         
-                        st.success(f"Successfully added '{new_face_name}' to the known faces database!")
+                        st.success(f"Successfully added '{new_face_name}' to the known faces database! ✅")
                         st.balloons()
                         st.rerun()
 
@@ -415,7 +440,7 @@ elif st.session_state.page == 'admin_panel':
         else:
             st.warning("Please provide both a name and upload an image.")
 
-    st.subheader("Current Known Faces")
+    st.subheader("Current Known Faces 📋")
     # ONLY SHOW NAME HERE
     if known_face_names: # Iterate through the known_face_names list
         for name in sorted(list(set(known_face_names))): # Use a set to get unique names and sort them
