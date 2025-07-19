@@ -491,15 +491,12 @@ elif st.session_state.page == 'admin_panel':
                 })
             df = pd.DataFrame(display_data)
 
+            df["Age"] = df["Age"].astype(str) # Convert to string
             st.dataframe(
                 df, 
                 use_container_width=True,
                 column_config={
-                    "Age": st.column_config.NumberColumn(
-                        "Age",
-                        help="The age of the person",
-                        format="%d",
-                        width="small",),
+                    "Age": st.column_config.TextColumn("Age", width="small"), # Treat as text
                     "Name": st.column_config.TextColumn("Name", width="large"),
                     "Height": st.column_config.TextColumn("Height", width="small"),
                 }
