@@ -228,13 +228,10 @@ if st.session_state.page == 'home':
 
 # --- User Authentication Page ---
 elif st.session_state.page == 'user_auth':
-    # Add logo to sidebar for User Login page
-    with st.sidebar:
         try:
             st.image("sso_logo.jpg", width=100) # Adjust width as needed for sidebar
         except FileNotFoundError:
-            st.warning("Logo image 'sso_logo.jpg' not found in sidebar.")
-        st.markdown("---") # Optional: Separator in sidebar
+            st.warning("Logo image 'sso_logo.jpg' not found")
 
     st.title("User Login 👤")
     st.markdown("Please enter your **username** and **password** to proceed to face recognition.")
