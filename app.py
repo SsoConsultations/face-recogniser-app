@@ -8,7 +8,6 @@ import firebase_admin
 from firebase_admin import credentials, firestore, storage
 import io
 import json
-import base64 # Essential import for base64 encoding
 
 # --- Firebase Initialization (Global, using st.session_state for persistence) ---
 if 'db' not in st.session_state or 'bucket' not in st.session_state:
@@ -192,38 +191,8 @@ def process_frame_for_faces(frame_rgb, known_encodings, known_names, known_detai
     return frame_bgr
 
 # --- Streamlit UI Layout ---
-# Set page config with centered layout and collapsed sidebar
 st.set_page_config(page_title="Dynamic Face Recognition App", layout="centered", initial_sidebar_state="collapsed")
 
-# Inject CSS for fixed logo position at the top-left
-st.markdown(
-    """
-    <style>
-    .fixed-logo {
-        position: fixed;
-        top: 5px; /* Adjusted top to 5px */
-        left: 5px; /* Adjusted left to 5px */
-        z-index: 999; /* Ensure it stays on top of other elements */
-    }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
-
-# Render the logo using Markdown with the custom class
-try:
-    with open("sso_logo.jpg", "rb") as f:
-        logo_bytes = f.read()
-    logo_base64 = base64.b64encode(logo_bytes).decode()
-
-    st.markdown(
-        f'<div class="fixed-logo"><img src="data:image/jpeg;base64,{logo_base64}" width="80"></div>', # Adjusted width to 80
-        unsafe_allow_html=True
-    )
-except FileNotFoundError:
-    st.warning("Logo image 'sso_logo.jpg' not found. Please ensure it's in the same directory.")
-
-# --- Session State Initialization ---
 if 'page' not in st.session_state:
     st.session_state.page = 'home'
 if 'logged_in_as_user' not in st.session_state: 
@@ -234,8 +203,14 @@ if 'logged_in_as_admin' not in st.session_state:
 
 # --- Home Page ---
 if st.session_state.page == 'home':
-    # Added padding-top to avoid overlap with the fixed logo
-    st.markdown("<h3 style='margin-bottom: 0px; padding-top: 50px;'>SSO Consultants Face Recogniser 🕵️‍♂️</h3>", unsafe_allow_html=True) 
+    
+    try:
+        st.image("sso_logo.jpg", width=150) 
+    except FileNotFoundError:
+        st.warning("Logo image 'sso_logo.jpg' not found. Please ensure it's in the same directory.")
+        st.markdown("## SSO Consultants") 
+
+    st.markdown("<h3 style='margin-bottom: 0px;'>SSO Consultants Face Recogniser 🕵️‍♂️</h3>", unsafe_allow_html=True)
     st.markdown("<p style='margin-top: 5px; margin-bottom: 20px; font-size:1.1em;'>Please choose your login type.</p>", unsafe_allow_html=True)
 
     col1_btn, col2_btn = st.columns([0.2, 0.2]) 
@@ -250,12 +225,12 @@ if st.session_state.page == 'home':
             st.session_state.page = 'admin_auth' 
             st.rerun()
 
+
 # --- User Authentication Page ---
 elif st.session_state.page == 'user_auth':
-    st.title("User Login 👤")
+    st.title("User Login")
     st.markdown("Please enter your **username** and **password** to proceed to face recognition.")
 
-    # No specific column for logo here, as it's handled by the fixed-logo CSS
     user_username_input = st.text_input("Username:", key="user_username_input")
     user_password_input = st.text_input("Password:", type="password", key="user_password_input")
 
@@ -270,7 +245,7 @@ elif st.session_state.page == 'user_auth':
                     break
         
         if authenticated:
-            st.success("User login successful! Redirecting to Face Recognition... 🎉")
+            st.success("User login successful! Redirecting to Face Recognition...")
             st.session_state.logged_in_as_user = True
             st.session_state.page = 'user_recognition'
             st.rerun()
@@ -288,7 +263,7 @@ elif st.session_state.page == 'user_recognition':
         st.session_state.page = 'user_auth'
         st.rerun()
 
-    st.title("Face Recognition App with Dynamic Labels 🕵️‍♂️")
+    st.title("Face Recognition App with Dynamic Labels")
     st.markdown("""
     This application performs face recognition from your live webcam or an uploaded image.
     The name labels will dynamically adjust their size to fit the recognized name and display additional details!
@@ -345,17 +320,16 @@ elif st.session_state.page == 'user_recognition':
 
 # --- Admin Authentication Page ---
 elif st.session_state.page == 'admin_auth':
-    st.title("Admin Login 🔒")
+    st.title("Admin Login")
     st.markdown("Please enter your **admin username** and **password**.")
 
-    # No specific column for logo here, as it's handled by the fixed-logo CSS
     admin_username_input = st.text_input("Admin Username:", key="admin_username_input")
     admin_password_input = st.text_input("Admin Password:", type="password", key="admin_pass_input")
 
     if st.button("Login", key="submit_admin_login"):
         if admin_username_input == st.secrets["admin"]["username"] and \
            admin_password_input == st.secrets["admin"]["password"]:
-            st.success("Admin login successful! Redirecting to Admin Panel... 🎉")
+            st.success("Admin login successful! Redirecting to Admin Panel...")
             st.session_state.logged_in_as_admin = True
             st.session_state.page = 'admin_panel'
             st.rerun()
@@ -372,13 +346,11 @@ elif st.session_state.page == 'admin_panel':
         st.warning("Please log in as an admin to access this page.")
         st.session_state.page = 'admin_auth'
         st.rerun()
-    
-    # No sidebar logo here, as it's handled by the fixed-logo CSS
 
-    st.title("Admin Panel 🔒")
+    st.title("Admin Panel")
     st.markdown("This section is for **administrators** only.")
 
-    st.subheader("Add New Face to Database ➕")
+    st.subheader("Add New Face to Database")
     st.markdown("Upload an image of a person and provide a name and details for recognition.")
 
     new_face_name = st.text_input("Enter Name/Description for the Face:", key="new_face_name_input")
@@ -443,7 +415,7 @@ elif st.session_state.page == 'admin_panel':
         else:
             st.warning("Please provide both a name and upload an image.")
 
-    st.subheader("Current Known Faces 📋")
+    st.subheader("Current Known Faces")
     # ONLY SHOW NAME HERE
     if known_face_names: # Iterate through the known_face_names list
         for name in sorted(list(set(known_face_names))): # Use a set to get unique names and sort them
@@ -457,4 +429,4 @@ elif st.session_state.page == 'admin_panel':
         st.rerun()
 
 st.markdown("---")
-st.markdown("SSO Consultants Face Recogniser Tool © 2025 | All Rights Reserved.")
+st.markdown("SSO Consultants Face Recognition Tool © 2025 | All Rights Reserved.")
