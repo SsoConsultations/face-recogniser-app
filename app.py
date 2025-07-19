@@ -252,7 +252,7 @@ elif st.session_state.page == 'user_auth':
         else:
             st.error("Invalid username or password for user.")
 
-    if st.button("⬅ Back to Home", key="user_auth_back_btn"):
+    if st.button("Back to Home", key="user_auth_back_btn"):
         st.session_state.page = 'home'
         st.rerun()
 
@@ -282,7 +282,7 @@ elif st.session_state.page == 'user_recognition':
         option = st.radio("", ("Live Webcam Recognition", "Upload Image for Recognition"), key="user_input_option_sidebar")
         
         st.markdown("---")
-        if st.button("⬅ Log Out", key="user_logout_sidebar_btn"): # Logout button in sidebar
+        if st.button("Log Out", key="user_logout_sidebar_btn"): # Logout button in sidebar
             st.session_state.logged_in_as_user = False
             st.session_state.page = 'home'
             st.rerun()
@@ -342,7 +342,7 @@ elif st.session_state.page == 'admin_auth':
         else:
             st.error("Invalid username or password for admin.")
 
-    if st.button("⬅ Back to Home", key="admin_auth_back_btn"):
+    if st.button("Back to Home", key="admin_auth_back_btn"):
         st.session_state.page = 'home'
         st.rerun()
 
@@ -366,7 +366,7 @@ elif st.session_state.page == 'admin_panel':
         else:
             st.info("No faces currently registered.")
         st.markdown("---")
-        if st.button("⬅ Log Out", key="admin_logout_sidebar_btn"): # Logout button in sidebar
+        if st.button("Log Out", key="admin_logout_sidebar_btn"): # Logout button in sidebar
             st.session_state.logged_in_as_admin = False
             st.session_state.page = 'home'
             st.rerun()
