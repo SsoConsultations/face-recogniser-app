@@ -274,7 +274,7 @@ elif st.session_state.page == 'user_recognition':
 
     with st.sidebar:
         try:
-            st.image("sso_logo.jpg", width=100) # Logo in sidebar
+            st.image("sso_logo.jpg", width=150) # Logo in sidebar
         except FileNotFoundError:
             st.warning("Logo image 'sso_logo.jpg' not found in sidebar.")
         st.markdown("---")
