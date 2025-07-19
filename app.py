@@ -17,7 +17,7 @@ if 'db' not in st.session_state or 'bucket' not in st.session_state:
         if not firebase_admin._apps:
             cred = credentials.Certificate(firebase_credentials_dict)
             firebase_admin.initialize_app(cred, {
-                'storageBucket': st.secrets["firebase"]["storage_bucket"] 
+                'storageBucket': st.secrets["firebase"]["storage_bucket'] 
             })
         
         st.session_state.db = firestore.client()
@@ -36,7 +36,7 @@ def load_known_faces_from_firebase(_=None):
     known_face_encodings_local = []
     known_face_names_local = []
     known_face_details_local = [] 
-    known_face_docs_local = [] # To store full document data including ID
+    known_face_docs_local = [] 
 
     try:
         docs = st.session_state.db.collection(FIRESTORE_COLLECTION_NAME).stream()
@@ -51,7 +51,6 @@ def load_known_faces_from_firebase(_=None):
             if name and encoding_list:
                 known_face_encodings_local.append(np.array(encoding_list))
                 known_face_names_local.append(name)
-                # Store all relevant details as a dictionary, including doc_id and image path
                 known_face_details_local.append({
                     "doc_id": doc.id,
                     "name": name, 
@@ -59,7 +58,6 @@ def load_known_faces_from_firebase(_=None):
                     "height": height,
                     "image_storage_path": image_storage_path
                 })
-                # Store full document data for easier display/update later
                 known_face_docs_local.append({"id": doc.id, **face_data})
             else:
                 st.warning(f"Skipping malformed face data in Firestore document {doc.id}. Missing name or encoding.")
@@ -75,20 +73,6 @@ known_face_encodings, known_face_names, known_face_details, known_face_docs = lo
 
 # --- Face Processing and Drawing Function ---
 def process_frame_for_faces(frame_rgb, known_encodings, known_names, known_details):
-    """
-    Detects faces in an image, compares them to known faces, and draws bounding boxes
-    and labels with only the name on the image. Other details are returned for sidebar display.
-    
-    Args:
-        frame_rgb (numpy.array): The input image frame in RGB format.
-        known_encodings (list): List of known face encodings.
-        known_names (list): List of names corresponding to known encodings.
-        known_details (list): List of dictionaries containing all known face details (name, age, height).
-        
-    Returns:
-        numpy.array: The image frame with detected faces, boxes, and only the name label drawn.
-        list: A list of dictionaries, each containing details for a detected and identified face.
-    """
     frame_rgb_copy = np.copy(frame_rgb)
     
     face_locations = face_recognition.face_locations(frame_rgb_copy)
@@ -374,7 +358,7 @@ elif st.session_state.page == 'admin_auth':
     st.markdown("Please enter your **admin username** and **password**.")
 
     admin_username_input = st.text_input("Admin Username:", key="admin_username_input")
-    admin_password_input = st.text_input("Admin Password:", type="password", key="admin_pass_input")
+    admin_password_input = st.text_input("Password:", type="password", key="admin_pass_input")
 
     if st.button("Login", key="submit_admin_login"):
         if admin_username_input == st.secrets["admin"]["username"] and \
@@ -474,6 +458,7 @@ elif st.session_state.page == 'admin_panel':
                             doc_ref.set(doc_data)
 
                             load_known_faces_from_firebase.clear()
+                            # CORRECTED: global declaration before re-assignment
                             global known_face_encodings, known_face_names, known_face_details, known_face_docs
                             known_face_encodings, known_face_names, known_face_details, known_face_docs = load_known_faces_from_firebase(_=np.random.rand()) 
                             
@@ -498,7 +483,6 @@ elif st.session_state.page == 'admin_panel':
         if not known_face_docs:
             st.info("No faces are currently registered in the database.")
         else:
-            # Create a DataFrame for better display and manipulation
             import pandas as pd
             display_data = []
             for doc in known_face_docs:
@@ -511,13 +495,12 @@ elif st.session_state.page == 'admin_panel':
                 })
             df = pd.DataFrame(display_data)
 
-            st.dataframe(df, use_container_width=True) # Display the DataFrame
+            st.dataframe(df, use_container_width=True)
 
             st.markdown("---")
             st.subheader("Update Existing Face Details")
             st.markdown("Select a face from the dropdown to update its information.")
 
-            # Create a dictionary for easy lookup: {name (ID): doc_id}
             name_to_id_map = {f"{doc.get('name', 'Unnamed')} (ID: {doc['id'][:6]}...)": doc["id"] for doc in known_face_docs}
             
             selected_face_label = st.selectbox(
@@ -532,7 +515,6 @@ elif st.session_state.page == 'admin_panel':
 
                 st.write(f"**Currently updating:** {selected_doc.get('name', 'Unnamed')}")
 
-                # Display current image if available
                 if selected_doc.get("image_storage_path"):
                     try:
                         blob = st.session_state.bucket.blob(selected_doc["image_storage_path"])
@@ -541,7 +523,6 @@ elif st.session_state.page == 'admin_panel':
                     except Exception as e:
                         st.warning(f"Could not load image from storage: {e}")
 
-                # Pre-fill input fields with current values
                 updated_name = st.text_input("New Name:", value=selected_doc.get("name", ""), key=f"update_name_{selected_doc_id}")
                 updated_age = st.number_input("New Age (optional):", min_value=0, max_value=150, value=selected_doc.get("age"), format="%d", key=f"update_age_{selected_doc_id}")
                 updated_height = st.text_input("New Height (optional):", value=selected_doc.get("height", ""), key=f"update_height_{selected_doc_id}")
@@ -571,7 +552,6 @@ elif st.session_state.page == 'admin_panel':
                                     face_encodings = face_recognition.face_encodings(img_array, face_locations)
 
                                     if face_encodings:
-                                        # Delete old image from storage if it exists
                                         if selected_doc.get("image_storage_path"):
                                             try:
                                                 old_blob = st.session_state.bucket.blob(selected_doc["image_storage_path"])
@@ -581,7 +561,6 @@ elif st.session_state.page == 'admin_panel':
                                             except Exception as e:
                                                 st.warning(f"Could not delete old image from storage: {e}")
 
-                                        # Upload new image
                                         unique_filename = f"{updated_name.replace(' ', '_').lower()}_{os.urandom(4).hex()}.jpg"
                                         new_storage_path = f"{STORAGE_KNOWN_FACES_FOLDER}/{unique_filename}"
                                         img_byte_arr = io.BytesIO()
@@ -598,11 +577,11 @@ elif st.session_state.page == 'admin_panel':
                                     else:
                                         st.warning("No face found in the re-uploaded image. Face encoding and image path will not be updated.")
                                         
-                                # Update Firestore document
                                 doc_ref = st.session_state.db.collection(FIRESTORE_COLLECTION_NAME).document(selected_doc_id)
                                 doc_ref.update(update_data)
 
                                 load_known_faces_from_firebase.clear()
+                                # CORRECTED: global declaration before re-assignment
                                 global known_face_encodings, known_face_names, known_face_details, known_face_docs
                                 known_face_encodings, known_face_names, known_face_details, known_face_docs = load_known_faces_from_firebase(_=np.random.rand())
                                 
@@ -613,33 +592,33 @@ elif st.session_state.page == 'admin_panel':
                                 st.error(f"Error updating face: {e}")
                                 
                 with col_delete:
+                    # Added a "Confirm Delete" step for safety
                     if st.button(f"Delete {selected_doc.get('name', 'Unnamed')}", key=f"delete_btn_{selected_doc_id}"):
-                        if st.warning("Are you sure you want to delete this entry? This action is irreversible."):
-                            if st.button("Confirm Delete", key=f"confirm_delete_{selected_doc_id}"):
-                                with st.spinner(f"Deleting {selected_doc.get('name', 'Unnamed')}..."):
-                                    try:
-                                        # Delete image from storage
-                                        if selected_doc.get("image_storage_path"):
-                                            try:
-                                                blob = st.session_state.bucket.blob(selected_doc["image_storage_path"])
-                                                if blob.exists():
-                                                    blob.delete()
-                                                    st.info(f"Deleted image from Storage: {selected_doc['image_storage_path']}")
-                                            except Exception as e:
-                                                st.warning(f"Could not delete image from storage: {e}")
+                        st.warning("Are you sure you want to delete this entry? This action is irreversible.")
+                        if st.button("Confirm Delete", key=f"confirm_delete_{selected_doc_id}"):
+                            with st.spinner(f"Deleting {selected_doc.get('name', 'Unnamed')}..."):
+                                try:
+                                    if selected_doc.get("image_storage_path"):
+                                        try:
+                                            blob = st.session_state.bucket.blob(selected_doc["image_storage_path"])
+                                            if blob.exists():
+                                                blob.delete()
+                                                st.info(f"Deleted image from Storage: {selected_doc['image_storage_path']}")
+                                        except Exception as e:
+                                            st.warning(f"Could not delete image from storage: {e}")
 
-                                        # Delete document from Firestore
-                                        st.session_state.db.collection(FIRESTORE_COLLECTION_NAME).document(selected_doc_id).delete()
+                                    st.session_state.db.collection(FIRESTORE_COLLECTION_NAME).document(selected_doc_id).delete()
 
-                                        load_known_faces_from_firebase.clear()
-                                        global known_face_encodings, known_face_names, known_face_details, known_face_docs
-                                        known_face_encodings, known_face_names, known_face_details, known_face_docs = load_known_faces_from_firebase(_=np.random.rand())
+                                    load_known_faces_from_firebase.clear()
+                                    # CORRECTED: global declaration before re-assignment
+                                    global known_face_encodings, known_face_names, known_face_details, known_face_docs
+                                    known_face_encodings, known_face_names, known_face_details, known_face_docs = load_known_faces_from_firebase(_=np.random.rand())
 
-                                        st.success(f"Successfully deleted '{selected_doc.get('name', 'Unnamed')}'! 🗑️")
-                                        st.rerun()
+                                    st.success(f"Successfully deleted '{selected_doc.get('name', 'Unnamed')}'! 🗑️")
+                                    st.rerun()
 
-                                    except Exception as e:
-                                        st.error(f"Error deleting face: {e}")
+                                except Exception as e:
+                                    st.error(f"Error deleting face: {e}")
 
 st.markdown("---")
 st.markdown("SSO Consultants Face Recognition Tool © 2025 | All Rights Reserved.")
