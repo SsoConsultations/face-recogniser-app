@@ -228,7 +228,7 @@ if st.session_state.page == 'home':
 
 # --- User Authentication Page ---
 elif st.session_state.page == 'user_auth':
-    st.title("User Login 👤")
+    st.title("User Login")
     st.markdown("Please enter your **username** and **password** to proceed to face recognition.")
 
     user_username_input = st.text_input("Username:", key="user_username_input")
