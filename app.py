@@ -282,8 +282,10 @@ elif st.session_state.page == 'user_recognition':
     st.sidebar.header("Choose Input Method")
     option = st.sidebar.radio("", ("Live Webcam Recognition", "Upload Image for Recognition"), key="user_input_option")
 
-        st.markdown("---")
-        if st.button("⬅ Log Out", key="user_logout_sidebar_btn"): # Logout button in sidebar
+    with st.sidebar.footer:
+        try:
+            st.markdown("---")
+            if st.button("⬅ Log Out", key="user_logout_sidebar_btn"): # Logout button in sidebar
                 st.session_state.logged_in_as_user = False
                 st.session_state.page = 'home'
                 st.rerun()
