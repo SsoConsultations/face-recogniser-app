@@ -331,7 +331,6 @@ elif st.session_state.page == 'user_recognition':
                     st.write(f"**Age:** {face_detail.get('age', 'N/A')}")
                 if face_detail.get('height') != "N/A":
                     st.write(f"**Height:** {face_detail.get('height', 'N/A')}")
-                st.markdown("---") # Separator for multiple faces
         else:
             st.info("No faces detected or recognized yet.")
 
