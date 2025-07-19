@@ -35,7 +35,6 @@ STORAGE_KNOWN_FACES_FOLDER = "known_faces_images"
 def load_known_faces_from_firebase(_=None): 
     known_face_encodings_local = []
     known_face_names_local = []
-    # New list to store additional details for recognition
     known_face_details_local = [] 
 
     try:
@@ -44,13 +43,12 @@ def load_known_faces_from_firebase(_=None):
             face_data = doc.to_dict()
             name = face_data.get("name")
             encoding_list = face_data.get("encoding")
-            age = face_data.get("age") # Retrieve age
-            height = face_data.get("height") # Retrieve height
+            age = face_data.get("age")
+            height = face_data.get("height")
             
             if name and encoding_list:
                 known_face_encodings_local.append(np.array(encoding_list))
                 known_face_names_local.append(name)
-                # Store age and height along with the name
                 known_face_details_local.append({"name": name, "age": age, "height": height})
             else:
                 st.warning(f"Skipping malformed face data in Firestore document {doc.id}. Missing name or encoding.")
@@ -62,14 +60,13 @@ def load_known_faces_from_firebase(_=None):
                  "Ensure your Firestore collection exists and security rules are correct.")
         return [], [], []
 
-# Unpack all returned values from load_known_faces_from_firebase
 known_face_encodings, known_face_names, known_face_details = load_known_faces_from_firebase()
 
 # --- Face Processing and Drawing Function ---
 def process_frame_for_faces(frame_rgb, known_encodings, known_names, known_details):
     """
     Detects faces in an image, compares them to known faces, and draws bounding boxes
-    and labels with dynamic text sizing, including additional details.
+    and labels with dynamic text sizing, including additional details on separate lines.
     
     Args:
         frame_rgb (numpy.array): The input image frame in RGB format.
@@ -91,8 +88,9 @@ def process_frame_for_faces(frame_rgb, known_encodings, known_names, known_detai
         return frame_bgr
 
     for (top, right, bottom, left), face_encoding in zip(face_locations, face_encodings):
-        display_text = "Unknown" # Default text for unrecognized faces
-
+        # Prepare list of text lines to display
+        text_lines = ["Unknown"] 
+        
         if known_encodings: 
             matches = face_recognition.compare_faces(known_encodings, face_encoding)
             face_distances = face_recognition.face_distance(known_encodings, face_encoding)
@@ -100,33 +98,30 @@ def process_frame_for_faces(frame_rgb, known_encodings, known_names, known_detai
             best_match_index = np.argmin(face_distances)
             
             if matches[best_match_index]:
-                # Retrieve all details for the matched person
                 matched_person_details = known_details[best_match_index]
                 name = matched_person_details.get("name", "N/A")
                 age = matched_person_details.get("age", "N/A")
                 height = matched_person_details.get("height", "N/A")
                 
-                # Format the display text to include all details
-                display_text = f"Name: {name}"
+                text_lines = [f"Name: {name}"]
                 if age != "N/A":
-                    display_text += f", Age: {age}"
+                    text_lines.append(f"Age: {age}")
                 if height != "N/A":
-                    display_text += f", Ht: {height}" # Abbreviate height for space
+                    text_lines.append(f"Ht: {height}")
             else:
                 if face_distances[best_match_index] < 0.6: 
-                    # If not a direct match, but close, still show details with "Possibly"
                     matched_person_details = known_details[best_match_index]
                     name = matched_person_details.get("name", "N/A")
                     age = matched_person_details.get("age", "N/A")
                     height = matched_person_details.get("height", "N/A")
                     
-                    display_text = f"Possibly {name}"
+                    text_lines = [f"Possibly {name}"]
                     if age != "N/A":
-                        display_text += f", Age: {age}"
+                        text_lines.append(f"Age: {age}")
                     if height != "N/A":
-                        display_text += f", Ht: {height}"
+                        text_lines.append(f"Ht: {height}")
                 else:
-                    display_text = "Unknown"
+                    text_lines = ["Unknown"]
 
         # --- Dynamic Drawing Parameters ---
         face_width = right - left
@@ -154,15 +149,21 @@ def process_frame_for_faces(frame_rgb, known_encodings, known_names, known_detai
         cv2.rectangle(frame_bgr, (left_ext, top_ext), (right_ext, bottom_ext), (0, 255, 0), line_thickness)
 
         font = cv2.FONT_HERSHEY_DUPLEX
-        # Calculate text size for the full display_text
-        (text_width, text_height), baseline = cv2.getTextSize(display_text, font, font_scale, font_thickness)
         
-        label_padding_x = int(text_width * 0.1) # Reduced padding slightly for potentially longer text
-        label_padding_y = int(text_height * 0.3) # Reduced padding slightly
-        
-        # Adjust label width and height for the longer text
-        label_width = text_width + (label_padding_x * 2)
-        label_height = text_height + (label_padding_y * 2) + baseline
+        max_text_width = 0
+        total_text_height = 0
+        line_heights = []
+        for line in text_lines:
+            (w, h), baseline = cv2.getTextSize(line, font, font_scale, font_thickness)
+            max_text_width = max(max_text_width, w)
+            total_text_height += h + baseline 
+            line_heights.append(h + baseline) 
+
+        label_padding_x = int(max_text_width * 0.1) 
+        label_padding_y = int(line_heights[0] * 0.3) 
+
+        label_width = max_text_width + (label_padding_x * 2)
+        label_height = total_text_height + (label_padding_y * 2) + (len(text_lines) - 1) * int(line_heights[0] * 0.2)
 
         label_top = bottom_ext
         label_bottom = label_top + label_height
@@ -181,10 +182,11 @@ def process_frame_for_faces(frame_rgb, known_encodings, known_names, known_detai
 
         cv2.rectangle(frame_bgr, (label_left, label_top), (label_right, label_bottom), (0, 255, 0), cv2.FILLED)
 
-        text_x = label_left + label_padding_x
-        text_y = label_top + label_padding_y + text_height 
-
-        cv2.putText(frame_bgr, display_text, (text_x, text_y), font, font_scale, (0, 0, 0), font_thickness)
+        current_y = label_top + label_padding_y + line_heights[0] 
+        for i, line in enumerate(text_lines):
+            text_x = label_left + label_padding_x 
+            cv2.putText(frame_bgr, line, (text_x, int(current_y)), font, font_scale, (0, 0, 0), font_thickness)
+            current_y += line_heights[i] + int(line_heights[i] * 0.2)
 
     return frame_bgr
 
@@ -208,11 +210,10 @@ if st.session_state.page == 'home':
         st.warning("Logo image 'sso_logo.jpg' not found. Please ensure it's in the same directory.")
         st.markdown("## SSO Consultants") 
 
-    st.markdown("<h3 style='margin-bottom: 0px;'>SSO Consultants Face Recogniser</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 style='margin-bottom: 0px;'>SSO Consultants Face Recogniser 🕵️‍♂️</h3>", unsafe_allow_html=True)
     st.markdown("<p style='margin-top: 5px; margin-bottom: 20px; font-size:1.1em;'>Please choose your login type.</p>", unsafe_allow_html=True)
 
-    # --- Buttons on one line ---
-    col1_btn, col2_btn = st.columns([0.2, 0.2]) # Adjust column ratios to control spacing and alignment
+    col1_btn, col2_btn = st.columns([0.2, 0.2]) 
 
     with col1_btn:
         if st.button("Login as User", key="user_login_btn", help="Proceed to face recognition for users"):
@@ -244,7 +245,7 @@ elif st.session_state.page == 'user_auth':
                     break
         
         if authenticated:
-            st.success("User login successful! Redirecting to Face Recognition... 🎉")
+            st.success("User login successful! Redirecting to Face Recognition...")
             st.session_state.logged_in_as_user = True
             st.session_state.page = 'user_recognition'
             st.rerun()
@@ -286,7 +287,6 @@ elif st.session_state.page == 'user_recognition':
                 img_bgr = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
                 img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
 
-                # Pass known_face_details to the processing function
                 processed_img_bgr = process_frame_for_faces(img_rgb, known_face_encodings, known_face_names, known_face_details)
                 processed_img_rgb = cv2.cvtColor(processed_img_bgr, cv2.COLOR_BGR2RGB)
 
@@ -306,7 +306,6 @@ elif st.session_state.page == 'user_recognition':
 
                 st.image(img_rgb, caption="Original Uploaded Image", use_container_width=True)
 
-                # Pass known_face_details to the processing function
                 processed_img_bgr = process_frame_for_faces(img_rgb, known_face_encodings, known_face_names, known_face_details)
                 processed_img_rgb = cv2.cvtColor(processed_img_bgr, cv2.COLOR_BGR2RGB)
 
@@ -330,7 +329,7 @@ elif st.session_state.page == 'admin_auth':
     if st.button("Login", key="submit_admin_login"):
         if admin_username_input == st.secrets["admin"]["username"] and \
            admin_password_input == st.secrets["admin"]["password"]:
-            st.success("Admin login successful! Redirecting to Admin Panel... 🎉")
+            st.success("Admin login successful! Redirecting to Admin Panel...")
             st.session_state.logged_in_as_admin = True
             st.session_state.page = 'admin_panel'
             st.rerun()
@@ -355,9 +354,8 @@ elif st.session_state.page == 'admin_panel':
     st.markdown("Upload an image of a person and provide a name and details for recognition.")
 
     new_face_name = st.text_input("Enter Name/Description for the Face:", key="new_face_name_input")
-    # New input fields for Age and Height
-    new_face_age = st.number_input("Enter Age:", min_value=0, max_value=150, value=None, format="%d", key="new_face_age_input")
-    new_face_height = st.text_input("Enter Height (e.g., 5'10\" or 178cm):", key="new_face_height_input")
+    new_face_age = st.number_input("Enter Age (optional):", min_value=0, max_value=150, value=None, format="%d", key="new_face_age_input")
+    new_face_height = st.text_input("Enter Height (e.g., 5'10\" or 178cm) (optional):", key="new_face_height_input")
     
     new_face_image = st.file_uploader("Upload Image of New Face:", 
                                      type=["jpg", "jpeg", "png"], 
@@ -394,15 +392,13 @@ elif st.session_state.page == 'admin_panel':
                             "image_storage_path": storage_path,
                             "timestamp": firestore.SERVER_TIMESTAMP
                         }
-                        # Add age and height only if provided
-                        if new_face_age is not None: # Use is not None for number_input
+                        if new_face_age is not None:
                             doc_data["age"] = new_face_age
-                        if new_face_height: # Check if string is not empty
+                        if new_face_height:
                             doc_data["height"] = new_face_height
 
                         doc_ref.set(doc_data)
 
-                        # Clear cache and reload all data, including new details
                         load_known_faces_from_firebase.clear()
                         known_face_encodings, known_face_names, known_face_details = load_known_faces_from_firebase(_=np.random.rand()) 
                         
@@ -420,19 +416,10 @@ elif st.session_state.page == 'admin_panel':
             st.warning("Please provide both a name and upload an image.")
 
     st.subheader("Current Known Faces")
-    # Display names and other details for known faces
-    if known_face_details: # Iterate through known_face_details now
-        for person_data in known_face_details:
-            name = person_data.get('name', 'N/A')
-            age = person_data.get('age', 'N/A')
-            height = person_data.get('height', 'N/A')
-            
-            details_str = f"**{name}**"
-            if age != "N/A":
-                details_str += f", Age: {age}"
-            if height != "N/A":
-                details_str += f", Height: {height}"
-            st.write(f"- {details_str}")
+    # ONLY SHOW NAME HERE
+    if known_face_names: # Iterate through the known_face_names list
+        for name in sorted(list(set(known_face_names))): # Use a set to get unique names and sort them
+            st.write(f"- **{name}**") # Display only the name
     else:
         st.info("No faces currently registered in the database.")
 
