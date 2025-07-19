@@ -191,7 +191,7 @@ def process_frame_for_faces(frame_rgb, known_encodings, known_names, known_detai
     return frame_bgr
 
 # --- Streamlit UI Layout ---
-st.set_page_config(page_title="Dynamic Face Recognition App", layout="centered", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="Dynamic Face Recognition App", layout="centered", initial_sidebar_state="expanded")
 
 if 'page' not in st.session_state:
     st.session_state.page = 'home'
