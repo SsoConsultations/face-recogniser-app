@@ -519,7 +519,7 @@ elif st.session_state.page == 'admin_panel':
                     except Exception as e:
                         st.warning(f"Could not load image from storage: {e}")
 
-                updated_name = st.text_input("New Name:", value=selected_doc.get("name", ""))
+                updated_name = st.text_input("New Name:", value=selected_doc.get("name", ""), key=f"update_name_{selected_doc_id}")
                 updated_age = st.number_input("New Age (optional):", min_value=0, max_value=150, value=selected_doc.get("age"), format="%d", key=f"update_age_{selected_doc_id}")
                 updated_height = st.text_input("New Height (optional):", value=selected_doc.get("height", ""), key=f"update_height_{selected_doc_id}")
                 re_upload_image = st.file_uploader("Re-upload Image (optional, will replace current image):", 
