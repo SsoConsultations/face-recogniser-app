@@ -326,7 +326,7 @@ elif st.session_state.page == 'user_recognition':
         if st.session_state.detected_faces_sidebar_info:
             for i, face_detail in enumerate(st.session_state.detected_faces_sidebar_info):
                 # Display name prominently as a sub-heading
-                st.markdown(f"### Face {i+1}: **{face_detail.get('name', 'Unknown')}**") 
+                st.markdown(f"### Name: **{face_detail.get('name', 'Unknown')}**") 
                 if face_detail.get('age') != "N/A":
                     st.write(f"**Age:** {face_detail.get('age', 'N/A')}")
                 if face_detail.get('height') != "N/A":
