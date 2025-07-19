@@ -426,12 +426,12 @@ elif st.session_state.page == 'admin_panel':
         st.markdown("Upload an image of a person and provide a name and details for recognition.")
 
         new_face_name = st.text_input("Enter Name/Description for the Face:", key="new_face_name_input")
-        new_face_age = st.number_input("Enter Age (optional):", min_value=0, max_value=150, value=None, format="%d", key="new_face_age_input")
-        new_face_height = st.text_input("Enter Height (e.g., 5'10\" or 178cm) (optional):", key="new_face_height_input")
+        new_face_age = st.number_input("Enter Age:", min_value=0, max_value=150, value=None, format="%d", key="new_face_age_input")
+        new_face_height = st.text_input("Enter Height (e.g., 5'10\" or 178cm):", key="new_face_height_input")
         
         # New input fields for cricketer stats
-        new_face_total_runs = st.number_input("Total Runs (optional, for cricketers):", min_value=0, value=None, format="%d", key="new_face_total_runs_input")
-        new_face_total_wickets = st.number_input("Total Wickets (optional, for cricketers):", min_value=0, value=None, format="%d", key="new_face_total_wickets_input")
+        new_face_total_runs = st.number_input("Total Runs:", min_value=0, value=None, format="%d", key="new_face_total_runs_input")
+        new_face_total_wickets = st.number_input("Total Wickets:", min_value=0, value=None, format="%d", key="new_face_total_wickets_input")
         
         new_face_image = st.file_uploader("Upload Image of New Face:",
                                             type=["jpg", "jpeg", "png"],
@@ -558,12 +558,12 @@ elif st.session_state.page == 'admin_panel':
                         st.warning(f"Could not load image from storage: {e}")
 
                 updated_name = st.text_input("New Name:", value=selected_doc.get("name", ""), key=f"update_name_{selected_doc_id}")
-                updated_age = st.number_input("New Age (optional):", min_value=0, max_value=150, value=selected_doc.get("age"), format="%d", key=f"update_age_{selected_doc_id}")
-                updated_height = st.text_input("New Height (optional):", value=selected_doc.get("height", ""), key=f"update_height_{selected_doc_id}")
+                updated_age = st.number_input("New Age:", min_value=0, max_value=150, value=selected_doc.get("age"), format="%d", key=f"update_age_{selected_doc_id}")
+                updated_height = st.text_input("New Height:", value=selected_doc.get("height", ""), key=f"update_height_{selected_doc_id}")
                 
                 # New input fields for updating cricketer stats
-                updated_total_runs = st.number_input("New Total Runs (optional):", min_value=0, value=selected_doc.get("total_runs"), format="%d", key=f"update_total_runs_{selected_doc_id}")
-                updated_total_wickets = st.number_input("New Total Wickets (optional):", min_value=0, value=selected_doc.get("total_wickets"), format="%d", key=f"update_total_wickets_{selected_doc_id}")
+                updated_total_runs = st.number_input("New Total Runs:", min_value=0, value=selected_doc.get("total_runs"), format="%d", key=f"update_total_runs_{selected_doc_id}")
+                updated_total_wickets = st.number_input("New Total Wickets:", min_value=0, value=selected_doc.get("total_wickets"), format="%d", key=f"update_total_wickets_{selected_doc_id}")
                 
                 re_upload_image = st.file_uploader("Re-upload Image (optional, will replace current image):",
                                                     type=["jpg", "jpeg", "png"],
