@@ -606,8 +606,6 @@ elif st.session_state.page == 'admin_panel':
                                     st.session_state.db.collection(FIRESTORE_COLLECTION_NAME).document(selected_doc_id).delete()
 
                                     load_known_faces_from_firebase.clear()
-                                    # CORRECTED: global declaration before re-assignment
-                                    global known_face_encodings, known_face_names, known_face_details, known_face_docs
                                     known_face_encodings, known_face_names, known_face_details, known_face_docs = load_known_faces_from_firebase(_=np.random.rand())
 
                                     st.success(f"Successfully deleted '{selected_doc.get('name', 'Unnamed')}'! 🗑️")
