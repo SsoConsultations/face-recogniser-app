@@ -46,6 +46,8 @@ def load_known_faces_from_firebase(_=None):
             encoding_list = face_data.get("encoding")
             age = face_data.get("age")
             height = face_data.get("height")
+            total_runs = face_data.get("total_runs") # New field
+            total_wickets = face_data.get("total_wickets") # New field
             image_storage_path = face_data.get("image_storage_path")
             
             if name and encoding_list:
@@ -56,6 +58,8 @@ def load_known_faces_from_firebase(_=None):
                     "name": name,
                     "age": age,
                     "height": height,
+                    "total_runs": total_runs, # New field
+                    "total_wickets": total_wickets, # New field
                     "image_storage_path": image_storage_path
                 })
                 known_face_docs_local.append({"id": doc.id, **face_data})
@@ -89,7 +93,7 @@ def process_frame_for_faces(frame_rgb, known_encodings, known_names, known_detai
 
     for (top, right, bottom, left), face_encoding in zip(face_locations, face_encodings):
         name_on_image = "Unknown"
-        current_face_details = {"name": "Unknown", "age": "N/A", "height": "N/A"}
+        current_face_details = {"name": "Unknown", "age": "N/A", "height": "N/A", "total_runs": "N/A", "total_wickets": "N/A"} # Updated
         
         if known_encodings:
             matches = face_recognition.compare_faces(known_encodings, face_encoding)
@@ -102,21 +106,25 @@ def process_frame_for_faces(frame_rgb, known_encodings, known_names, known_detai
                 name = matched_person_details.get("name", "N/A")
                 age = matched_person_details.get("age", "N/A")
                 height = matched_person_details.get("height", "N/A")
+                total_runs = matched_person_details.get("total_runs", "N/A") # New
+                total_wickets = matched_person_details.get("total_wickets", "N/A") # New
                 
                 name_on_image = f"Name: {name}"
-                current_face_details = {"name": name, "age": age, "height": height}
+                current_face_details = {"name": name, "age": age, "height": height, "total_runs": total_runs, "total_wickets": total_wickets} # Updated
             else:
                 if face_distances[best_match_index] < 0.6:
                     matched_person_details = known_details[best_match_index]
                     name = matched_person_details.get("name", "N/A")
                     age = matched_person_details.get("age", "N/A")
                     height = matched_person_details.get("height", "N/A")
+                    total_runs = matched_person_details.get("total_runs", "N/A") # New
+                    total_wickets = matched_person_details.get("total_wickets", "N/A") # New
                     
                     name_on_image = f"Possibly {name}"
-                    current_face_details = {"name": f"Possibly {name}", "age": age, "height": height}
+                    current_face_details = {"name": f"Possibly {name}", "age": age, "height": height, "total_runs": total_runs, "total_wickets": total_wickets} # Updated
                 else:
                     name_on_image = "Unknown"
-                    current_face_details = {"name": "Unknown", "age": "N/A", "height": "N/A"}
+                    current_face_details = {"name": "Unknown", "age": "N/A", "height": "N/A", "total_runs": "N/A", "total_wickets": "N/A"} # Updated
         
         detected_face_info.append(current_face_details)
 
@@ -283,6 +291,10 @@ elif st.session_state.page == 'user_recognition':
                     st.write(f"**Age:** {face_detail.get('age', 'N/A')}")
                 if face_detail.get('height') != "N/A":
                     st.write(f"**Height:** {face_detail.get('height', 'N/A')}")
+                if face_detail.get('total_runs') is not None and face_detail.get('total_runs') != "N/A": # New
+                    st.write(f"**Total Runs:** {face_detail.get('total_runs')}") # New
+                if face_detail.get('total_wickets') is not None and face_detail.get('total_wickets') != "N/A": # New
+                    st.write(f"**Total Wickets:** {face_detail.get('total_wickets')}") # New
         else:
             st.info("No faces detected or recognized yet.")
 
@@ -417,6 +429,10 @@ elif st.session_state.page == 'admin_panel':
         new_face_age = st.number_input("Enter Age (optional):", min_value=0, max_value=150, value=None, format="%d", key="new_face_age_input")
         new_face_height = st.text_input("Enter Height (e.g., 5'10\" or 178cm) (optional):", key="new_face_height_input")
         
+        # New input fields for cricketer stats
+        new_face_total_runs = st.number_input("Total Runs (optional, for cricketers):", min_value=0, value=None, format="%d", key="new_face_total_runs_input")
+        new_face_total_wickets = st.number_input("Total Wickets (optional, for cricketers):", min_value=0, value=None, format="%d", key="new_face_total_wickets_input")
+        
         new_face_image = st.file_uploader("Upload Image of New Face:",
                                             type=["jpg", "jpeg", "png"],
                                             key="new_face_image_uploader")
@@ -456,6 +472,10 @@ elif st.session_state.page == 'admin_panel':
                                 doc_data["age"] = new_face_age
                             if new_face_height:
                                 doc_data["height"] = new_face_height
+                            if new_face_total_runs is not None: # Add total_runs
+                                doc_data["total_runs"] = new_face_total_runs
+                            if new_face_total_wickets is not None: # Add total_wickets
+                                doc_data["total_wickets"] = new_face_total_wickets
 
                             doc_ref.set(doc_data)
 
@@ -490,17 +510,24 @@ elif st.session_state.page == 'admin_panel':
                     "Name": doc.get("name", "N/A"),
                     "Age": doc.get("age", "N/A"),
                     "Height": doc.get("height", "N/A"),
+                    "Total Runs": doc.get("total_runs", "N/A"), # New column
+                    "Total Wickets": doc.get("total_wickets", "N/A"), # New column
                 })
             df = pd.DataFrame(display_data)
 
-            df["Age"] = df["Age"].astype(str) # Convert to string
+            df["Age"] = df["Age"].astype(str) # Convert to string for display if "N/A" is possible
+            df["Total Runs"] = df["Total Runs"].astype(str) # Convert to string
+            df["Total Wickets"] = df["Total Wickets"].astype(str) # Convert to string
+
             st.dataframe(
                 df,
                 use_container_width=True,
                 column_config={
-                    "Age": st.column_config.TextColumn("Age", width="small"), # Treat as text
+                    "Age": st.column_config.TextColumn("Age", width="small"),
                     "Name": st.column_config.TextColumn("Name", width="large"),
                     "Height": st.column_config.TextColumn("Height", width="small"),
+                    "Total Runs": st.column_config.TextColumn("Total Runs", width="small"), # Configure new column
+                    "Total Wickets": st.column_config.TextColumn("Total Wickets", width="small"), # Configure new column
                 }
             )
 
@@ -533,6 +560,11 @@ elif st.session_state.page == 'admin_panel':
                 updated_name = st.text_input("New Name:", value=selected_doc.get("name", ""), key=f"update_name_{selected_doc_id}")
                 updated_age = st.number_input("New Age (optional):", min_value=0, max_value=150, value=selected_doc.get("age"), format="%d", key=f"update_age_{selected_doc_id}")
                 updated_height = st.text_input("New Height (optional):", value=selected_doc.get("height", ""), key=f"update_height_{selected_doc_id}")
+                
+                # New input fields for updating cricketer stats
+                updated_total_runs = st.number_input("New Total Runs (optional):", min_value=0, value=selected_doc.get("total_runs"), format="%d", key=f"update_total_runs_{selected_doc_id}")
+                updated_total_wickets = st.number_input("New Total Wickets (optional):", min_value=0, value=selected_doc.get("total_wickets"), format="%d", key=f"update_total_wickets_{selected_doc_id}")
+                
                 re_upload_image = st.file_uploader("Re-upload Image (optional, will replace current image):",
                                                     type=["jpg", "jpeg", "png"],
                                                     key=f"re_upload_image_{selected_doc_id}")
@@ -546,7 +578,9 @@ elif st.session_state.page == 'admin_panel':
                                 update_data = {
                                     "name": updated_name,
                                     "age": updated_age,
-                                    "height": updated_height
+                                    "height": updated_height,
+                                    "total_runs": updated_total_runs, # Update total_runs
+                                    "total_wickets": updated_total_wickets, # Update total_wickets
                                 }
 
                                 new_encoding = None
