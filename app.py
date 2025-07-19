@@ -491,7 +491,19 @@ elif st.session_state.page == 'admin_panel':
                 })
             df = pd.DataFrame(display_data)
 
-            st.dataframe(df, use_container_width=True)
+            st.dataframe(
+                df, 
+                use_container_width=True,
+                column_config={
+                    "Age": st.column_config.NumberColumn(
+                        "Age",
+                        help="The age of the person",
+                        format="%d",
+                        width="small",),
+                    "Name": st.column_config.TextColumn("Name", width="large"),
+                    "Height": st.column_config.TextColumn("Height", width="small"),
+                }
+            )
 
             st.markdown("---")
             st.subheader("Update Existing Face Details")
