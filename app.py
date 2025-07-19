@@ -272,6 +272,13 @@ elif st.session_state.page == 'user_recognition':
     if not known_face_encodings:
         st.info("No known faces loaded from Firebase. Please ensure faces are added via the Admin panel.")
 
+    with st.sidebar:
+        try:
+            st.image("sso_logo.jpg", width=100) # Adjust width as needed for sidebar
+        except FileNotFoundError:
+            st.warning("Logo image 'sso_logo.jpg' not found in sidebar.")
+        st.markdown("---")
+
     st.sidebar.header("Choose Input Method")
     option = st.sidebar.radio("", ("Live Webcam Recognition", "Upload Image for Recognition"), key="user_input_option")
 
