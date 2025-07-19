@@ -274,21 +274,21 @@ elif st.session_state.page == 'user_recognition':
 
     with st.sidebar:
         try:
-            st.image("sso_logo.jpg", width=150) # Adjust width as needed for sidebar
+            st.image("sso_logo.jpg", width=100) # Logo in sidebar
         except FileNotFoundError:
             st.warning("Logo image 'sso_logo.jpg' not found in sidebar.")
         st.markdown("---")
-
-    st.sidebar.header("Choose Input Method")
-    option = st.sidebar.radio("", ("Live Webcam Recognition", "Upload Image for Recognition"), key="user_input_option")
-
-    with st.sidebar.footer:
-        try:
-            st.markdown("---")
-            if st.button("⬅ Log Out", key="user_logout_sidebar_btn"): # Logout button in sidebar
-                st.session_state.logged_in_as_user = False
-                st.session_state.page = 'home'
-                st.rerun()
+        st.header("User Options")
+        st.write("Welcome, User!")
+        st.markdown("---")
+        st.subheader("Choose Input Method")
+        option = st.radio("", ("Live Webcam Recognition", "Upload Image for Recognition"), key="user_input_option_sidebar")
+        
+        st.markdown("---")
+        if st.button("⬅ Log Out", key="user_logout_sidebar_btn"): # Logout button in sidebar
+            st.session_state.logged_in_as_user = False
+            st.session_state.page = 'home'
+            st.rerun()
 
     if option == "Live Webcam Recognition":
         st.subheader("Live Webcam Face Recognition")
