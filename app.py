@@ -458,8 +458,6 @@ elif st.session_state.page == 'admin_panel':
                             doc_ref.set(doc_data)
 
                             load_known_faces_from_firebase.clear()
-                            # CORRECTED: global declaration before re-assignment
-                            global known_face_encodings, known_face_names, known_face_details, known_face_docs
                             known_face_encodings, known_face_names, known_face_details, known_face_docs = load_known_faces_from_firebase(_=np.random.rand()) 
                             
                             st.success(f"Successfully added '{new_face_name}' to the known faces database! ✅")
