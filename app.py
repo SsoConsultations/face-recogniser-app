@@ -353,6 +353,24 @@ elif st.session_state.page == 'admin_panel':
         st.session_state.page = 'admin_auth'
         st.rerun()
 
+    with st.sidebar:
+        try:
+            st.image("sso_logo.jpg", width=150) # Logo in sidebar
+        except FileNotFoundError:
+            st.warning("Logo image 'sso_logo.jpg' not found in sidebar.")
+        st.markdown("---")
+        st.header("Faces in Database")
+        if known_face_names:
+            for name in sorted(list(set(known_face_names))):
+                st.write(f"- {name}")
+        else:
+            st.info("No faces currently registered.")
+        st.markdown("---")
+        if st.button("⬅ Log Out", key="admin_logout_sidebar_btn"): # Logout button in sidebar
+            st.session_state.logged_in_as_admin = False
+            st.session_state.page = 'home'
+            st.rerun()
+
     st.title("Admin Panel")
     st.markdown("This section is for **administrators** only.")
 
@@ -420,19 +438,6 @@ elif st.session_state.page == 'admin_panel':
                              "Check Firebase security rules and network connection.")
         else:
             st.warning("Please provide both a name and upload an image.")
-
-    st.subheader("Current Known Faces")
-    # ONLY SHOW NAME HERE
-    if known_face_names: # Iterate through the known_face_names list
-        for name in sorted(list(set(known_face_names))): # Use a set to get unique names and sort them
-            st.write(f"- **{name}**") # Display only the name
-    else:
-        st.info("No faces currently registered in the database.")
-
-    if st.button("⬅ Log Out and Go Home", key="admin_logout_btn"):
-        st.session_state.logged_in_as_admin = False
-        st.session_state.page = 'home'
-        st.rerun()
 
 st.markdown("---")
 st.markdown("SSO Consultants Face Recognition Tool © 2025 | All Rights Reserved.")
