@@ -284,7 +284,6 @@ elif st.session_state.page == 'user_recognition':
 
     if option == "Live Webcam Recognition":
         st.subheader("Live Webcam Face Recognition")
-        st.info("Allow camera access. Take a picture, and the app will detect/recognize faces.")
 
         camera_image = st.camera_input("Click 'Take Photo' to capture an image:", key="user_camera_input")
 
