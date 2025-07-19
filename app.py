@@ -191,8 +191,34 @@ def process_frame_for_faces(frame_rgb, known_encodings, known_names, known_detai
     return frame_bgr
 
 # --- Streamlit UI Layout ---
+# Set page config with wide layout if you want more space for the logo
 st.set_page_config(page_title="Dynamic Face Recognition App", layout="centered", initial_sidebar_state="collapsed")
 
+# Inject CSS for fixed logo position at the top-left
+st.markdown(
+    """
+    <style>
+    .fixed-logo {
+        position: fixed;
+        top: 10px; /* Adjust as needed */
+        left: 10px; /* Adjust as needed */
+        z-index: 999; /* Ensure it stays on top */
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+# Render the logo using Markdown with the custom class
+try:
+    st.markdown(
+        f'<div class="fixed-logo"><img src="data:image/jpeg;base64,{base64.b64encode(open("sso_logo.jpg", "rb").read()).decode()}" width="100"></div>',
+        unsafe_allow_html=True
+    )
+except FileNotFoundError:
+    st.warning("Logo image 'sso_logo.jpg' not found. Please ensure it's in the same directory.")
+
+# --- Session State Initialization ---
 if 'page' not in st.session_state:
     st.session_state.page = 'home'
 if 'logged_in_as_user' not in st.session_state: 
@@ -203,14 +229,8 @@ if 'logged_in_as_admin' not in st.session_state:
 
 # --- Home Page ---
 if st.session_state.page == 'home':
-    
-    try:
-        st.image("sso_logo.jpg", width=150) 
-    except FileNotFoundError:
-        st.warning("Logo image 'sso_logo.jpg' not found. Please ensure it's in the same directory.")
-        st.markdown("## SSO Consultants") 
-
-    st.markdown("<h3 style='margin-bottom: 0px;'>SSO Consultants Face Recogniser 🕵️‍♂️</h3>", unsafe_allow_html=True)
+    # No logo here, as it's handled by the fixed-logo CSS
+    st.markdown("<h3 style='margin-bottom: 0px; padding-top: 50px;'>SSO Consultants Face Recogniser 🕵️‍♂️</h3>", unsafe_allow_html=True) # Added padding-top to avoid overlap with fixed logo
     st.markdown("<p style='margin-top: 5px; margin-bottom: 20px; font-size:1.1em;'>Please choose your login type.</p>", unsafe_allow_html=True)
 
     col1_btn, col2_btn = st.columns([0.2, 0.2]) 
@@ -231,41 +251,31 @@ elif st.session_state.page == 'user_auth':
     st.title("User Login 👤")
     st.markdown("Please enter your **username** and **password** to proceed to face recognition.")
 
-    # Use columns to place logo on the side
-    col_logo, col_form = st.columns([0.3, 0.7]) # Adjust column ratios as needed
+    # Removed column for logo here, handled by fixed-logo CSS
+    user_username_input = st.text_input("Username:", key="user_username_input")
+    user_password_input = st.text_input("Password:", type="password", key="user_password_input")
 
-    with col_logo:
-        try:
-            st.image("sso_logo.jpg", width=100) # Adjust width as needed
-        except FileNotFoundError:
-            st.warning("Logo image 'sso_logo.jpg' not found.")
-        st.markdown("---") # Optional: Separator below logo
-
-    with col_form:
-        user_username_input = st.text_input("Username:", key="user_username_input")
-        user_password_input = st.text_input("Password:", type="password", key="user_password_input")
-
-        if st.button("Login", key="submit_user_login"):
-            user_credentials = st.secrets["users"]
-            authenticated = False
-            for key in user_credentials:
-                if key.endswith("_username") and user_credentials[key] == user_username_input:
-                    password_key = key.replace("_username", "_password")
-                    if password_key in user_credentials and user_credentials[password_key] == user_password_input:
-                        authenticated = True
-                        break
-            
-            if authenticated:
-                st.success("User login successful! Redirecting to Face Recognition... 🎉")
-                st.session_state.logged_in_as_user = True
-                st.session_state.page = 'user_recognition'
-                st.rerun()
-            else:
-                st.error("Invalid username or password for user.")
-
-        if st.button("⬅ Back to Home", key="user_auth_back_btn"):
-            st.session_state.page = 'home'
+    if st.button("Login", key="submit_user_login"):
+        user_credentials = st.secrets["users"]
+        authenticated = False
+        for key in user_credentials:
+            if key.endswith("_username") and user_credentials[key] == user_username_input:
+                password_key = key.replace("_username", "_password")
+                if password_key in user_credentials and user_credentials[password_key] == user_password_input:
+                    authenticated = True
+                    break
+        
+        if authenticated:
+            st.success("User login successful! Redirecting to Face Recognition... 🎉")
+            st.session_state.logged_in_as_user = True
+            st.session_state.page = 'user_recognition'
             st.rerun()
+        else:
+            st.error("Invalid username or password for user.")
+
+    if st.button("⬅ Back to Home", key="user_auth_back_btn"):
+        st.session_state.page = 'home'
+        st.rerun()
 
 # --- User Recognition Page (Accessible only after user login) ---
 elif st.session_state.page == 'user_recognition':
@@ -334,33 +344,23 @@ elif st.session_state.page == 'admin_auth':
     st.title("Admin Login 🔒")
     st.markdown("Please enter your **admin username** and **password**.")
 
-    # Use columns to place logo on the side
-    col_logo, col_form = st.columns([0.3, 0.7]) # Adjust column ratios as needed
+    # Removed column for logo here, handled by fixed-logo CSS
+    admin_username_input = st.text_input("Admin Username:", key="admin_username_input")
+    admin_password_input = st.text_input("Admin Password:", type="password", key="admin_pass_input")
 
-    with col_logo:
-        try:
-            st.image("sso_logo.jpg", width=100) # Adjust width as needed
-        except FileNotFoundError:
-            st.warning("Logo image 'sso_logo.jpg' not found.")
-        st.markdown("---") # Optional: Separator below logo
-
-    with col_form:
-        admin_username_input = st.text_input("Admin Username:", key="admin_username_input")
-        admin_password_input = st.text_input("Admin Password:", type="password", key="admin_pass_input")
-
-        if st.button("Login", key="submit_admin_login"):
-            if admin_username_input == st.secrets["admin"]["username"] and \
-            admin_password_input == st.secrets["admin"]["password"]:
-                st.success("Admin login successful! Redirecting to Admin Panel... 🎉")
-                st.session_state.logged_in_as_admin = True
-                st.session_state.page = 'admin_panel'
-                st.rerun()
-            else:
-                st.error("Invalid username or password for admin.")
-
-        if st.button("⬅ Back to Home", key="admin_auth_back_btn"):
-            st.session_state.page = 'home'
+    if st.button("Login", key="submit_admin_login"):
+        if admin_username_input == st.secrets["admin"]["username"] and \
+           admin_password_input == st.secrets["admin"]["password"]:
+            st.success("Admin login successful! Redirecting to Admin Panel... 🎉")
+            st.session_state.logged_in_as_admin = True
+            st.session_state.page = 'admin_panel'
             st.rerun()
+        else:
+            st.error("Invalid username or password for admin.")
+
+    if st.button("⬅ Back to Home", key="admin_auth_back_btn"):
+        st.session_state.page = 'home'
+        st.rerun()
 
 # --- Admin Panel (Accessible only after admin login) ---
 elif st.session_state.page == 'admin_panel':
@@ -369,14 +369,7 @@ elif st.session_state.page == 'admin_panel':
         st.session_state.page = 'admin_auth'
         st.rerun()
     
-    # Add logo to sidebar for Admin Panel page (keeping it in sidebar here as it's not a simple login form)
-    with st.sidebar:
-        try:
-            st.image("sso_logo.jpg", width=100) # Adjust width as needed for sidebar
-        except FileNotFoundError:
-            st.warning("Logo image 'sso_logo.jpg' not found in sidebar.")
-        st.markdown("---") # Optional: Separator in sidebar
-
+    # Removed sidebar logo here, handled by fixed-logo CSS
 
     st.title("Admin Panel 🔒")
     st.markdown("This section is for **administrators** only.")
