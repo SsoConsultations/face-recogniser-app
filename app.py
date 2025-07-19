@@ -233,6 +233,7 @@ elif st.session_state.page == 'user_auth':
         except FileNotFoundError:
             st.warning("Logo image 'sso_logo.jpg' not found")
 
+    
     st.title("User Login 👤")
     st.markdown("Please enter your **username** and **password** to proceed to face recognition.")
 
