@@ -277,11 +277,7 @@ elif st.session_state.page == 'user_recognition':
             st.image("sso_logo.jpg", width=150) # Logo in sidebar
         except FileNotFoundError:
             st.warning("Logo image 'sso_logo.jpg' not found in sidebar.")
-        st.markdown("---")
-        st.header("User Options")
-        st.write("Welcome, User!")
-        st.markdown("---")
-        st.subheader("Choose Input Method")
+        st.header("Choose Input Method")
         option = st.radio("", ("Live Webcam Recognition", "Upload Image for Recognition"), key="user_input_option_sidebar")
         
         st.markdown("---")
