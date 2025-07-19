@@ -429,3 +429,4 @@ elif st.session_state.page == 'admin_panel':
         st.rerun()
 
 st.markdown("---")
+st.markdown("SSO Consultants AI Recruitment Tool © 2025 | All Rights Reserved.")
