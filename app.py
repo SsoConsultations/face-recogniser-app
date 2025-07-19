@@ -8,6 +8,7 @@ import firebase_admin
 from firebase_admin import credentials, firestore, storage
 import io
 import json
+import base64 # <--- ADDED THIS LINE
 
 # --- Firebase Initialization (Global, using st.session_state for persistence) ---
 if 'db' not in st.session_state or 'bucket' not in st.session_state:
@@ -211,8 +212,12 @@ st.markdown(
 
 # Render the logo using Markdown with the custom class
 try:
+    with open("sso_logo.jpg", "rb") as f:
+        logo_bytes = f.read()
+    logo_base64 = base64.b64encode(logo_bytes).decode()
+
     st.markdown(
-        f'<div class="fixed-logo"><img src="data:image/jpeg;base64,{base64.b64encode(open("sso_logo.jpg", "rb").read()).decode()}" width="100"></div>',
+        f'<div class="fixed-logo"><img src="data:image/jpeg;base64,{logo_base64}" width="100"></div>',
         unsafe_allow_html=True
     )
 except FileNotFoundError:
