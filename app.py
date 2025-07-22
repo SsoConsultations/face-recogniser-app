@@ -670,21 +670,44 @@ elif st.session_state.page == 'admin_panel':
 
             st.markdown("---")
             st.subheader("Update Existing Face Details")
-            st.markdown("Select a face from the dropdown to update its information.")
+            st.markdown("Select a sport to filter players, then select a player to update their information.")
 
-            name_to_id_map = {f"{doc.get('name', 'Unnamed')} ({doc.get('sport', 'N/A')}) (ID: {doc['id'][:6]}...)": doc["id"] for doc in known_face_docs}
+            # Define SPORTS_OPTIONS for filtering in the update panel
+            SPORTS_OPTIONS_FILTER = ["All Sports"] + sorted(list(set(doc.get("sport", "Other") for doc in known_face_docs)))
             
-            selected_face_label = st.selectbox(
-                "Select a person to update:",
-                options=list(name_to_id_map.keys()),
-                key="select_face_to_update"
+            filter_sport = st.selectbox(
+                "Filter by Sport:",
+                options=SPORTS_OPTIONS_FILTER,
+                key="filter_sport_update"
             )
 
+            filtered_docs = []
+            if filter_sport == "All Sports":
+                filtered_docs = known_face_docs
+            else:
+                filtered_docs = [doc for doc in known_face_docs if doc.get("sport") == filter_sport]
+
+            if not filtered_docs:
+                st.info(f"No players found for the selected sport: **{filter_sport}**.")
+                selected_face_label = None # Ensure no player is selected if filter results in empty list
+            else:
+                name_to_id_map_filtered = {
+                    f"{doc.get('name', 'Unnamed')} (ID: {doc['id'][:6]}...)": doc["id"]
+                    for doc in filtered_docs
+                }
+                
+                selected_face_label = st.selectbox(
+                    "Select a person to update:",
+                    options=list(name_to_id_map_filtered.keys()),
+                    key="select_face_to_update"
+                )
+
             if selected_face_label:
-                selected_doc_id = name_to_id_map[selected_face_label]
+                selected_doc_id = name_to_id_map_filtered[selected_face_label]
                 selected_doc = next(doc for doc in known_face_docs if doc["id"] == selected_doc_id)
 
                 st.write(f"**Currently updating:** {selected_doc.get('name', 'Unnamed')}")
+                st.info(f"**Sport:** {selected_doc.get('sport', 'N/A')}") # Display current sport, but not allow update
 
                 if selected_doc.get("image_storage_path"):
                     try:
@@ -866,12 +889,14 @@ elif st.session_state.page == 'admin_panel':
                                 st.session_state.confirm_delete_doc_id = None # Clear confirmation state
                                 st.info("Deletion cancelled.")
                                 st.rerun()
-            else:
+            else: # This 'else' block handles when no face is selected (e.g., after filter is applied or no faces exist)
                 # If a different item is selected or no item is selected, clear any pending confirmation
                 # This handles cases where user selects 'A', sees confirm, then selects 'B'
                 if st.session_state.confirm_delete_doc_id is not None and st.session_state.confirm_delete_doc_id != selected_doc_id:
                     st.session_state.confirm_delete_doc_id = None
-                    st.rerun() # Rerun to clear the old confirmation prompt if it was visible
+                    # st.rerun() # Removed rerun here as it might cause an infinite loop if selected_face_label keeps changing
+                                # Rerun should only happen when a significant state change requires it
+                                # or if a user action specifically triggers it.
 
 
 st.markdown("---")
