@@ -684,7 +684,8 @@ elif st.session_state.page == 'admin_panel':
                 selected_doc_id = name_to_id_map[selected_face_label]
                 selected_doc = next(doc for doc in known_face_docs if doc["id"] == selected_doc_id)
 
-                st.write(f"**Currently updating:** {selected_doc.get('name', 'Unnamed')} ({selected_doc.get('sport', 'N/A')})") 
+                st.write(f"**Currently updating:** {selected_doc.get('name', 'Unnamed')}")
+                st.info(f"**Sport:** {selected_doc.get('sport', 'N/A')}") # Display current sport, but not allow update
 
                 if selected_doc.get("image_storage_path"):
                     try:
@@ -696,14 +697,15 @@ elif st.session_state.page == 'admin_panel':
 
                 updated_name = st.text_input("New Name:", value=selected_doc.get("name", ""), key=f"update_name_{selected_doc_id}")
                 
-                # NEW: Update Sport Selection
-                current_sport_index = SPORTS_OPTIONS.index(selected_doc.get("sport", "")) if selected_doc.get("sport") in SPORTS_OPTIONS else 0
-                updated_sport = st.selectbox("New Sport:", options=SPORTS_OPTIONS, index=current_sport_index, key=f"update_sport_{selected_doc_id}")
+                # REMOVED: updated_sport selection box
 
                 updated_age = st.number_input("New Age:", min_value=0, max_value=150, value=selected_doc.get("age"), format="%d", key=f"update_age_{selected_doc_id}")
                 updated_height = st.text_input("New Height:", value=selected_doc.get("height", ""), key=f"update_height_{selected_doc_id}")
                 
                 # Conditional input fields for updating sport-specific stats
+                # The sport value for these conditional inputs will be the original sport of the selected_doc
+                current_sport_of_selected_doc = selected_doc.get("sport", "")
+
                 updated_total_runs = None
                 updated_total_wickets = None
                 updated_points_per_game = None
@@ -712,13 +714,13 @@ elif st.session_state.page == 'admin_panel':
                 updated_goals_saved = None 
                 # REMOVED: updated_assists = None
 
-                if updated_sport == "Cricket":
+                if current_sport_of_selected_doc == "Cricket":
                     updated_total_runs = st.number_input("New Total Runs:", min_value=0, value=selected_doc.get("total_runs"), format="%d", key=f"update_total_runs_{selected_doc_id}")
                     updated_total_wickets = st.number_input("New Total Wickets:", min_value=0, value=selected_doc.get("total_wickets"), format="%d", key=f"update_total_wickets_{selected_doc_id}")
-                elif updated_sport == "NBA":
+                elif current_sport_of_selected_doc == "NBA":
                     updated_points_per_game = st.number_input("New Points Per Game (PPG):", min_value=0.0, value=selected_doc.get("points_per_game"), format="%.1f", key=f"update_nba_ppg_{selected_doc_id}")
                     updated_position = st.text_input("New Position:", value=selected_doc.get("position", ""), key=f"update_nba_position_{selected_doc_id}") 
-                elif updated_sport == "Football":
+                elif current_sport_of_selected_doc == "Football":
                     updated_goals = st.number_input("New Goals Scored:", min_value=0, value=selected_doc.get("goals_scored"), format="%d", key=f"update_football_goals_{selected_doc_id}")
                     updated_goals_saved = st.number_input("New Goals Saved:", min_value=0, value=selected_doc.get("goals_saved"), format="%d", key=f"update_football_goals_saved_{selected_doc_id}") 
                     # REMOVED: updated_assists = st.number_input("New Assists:", min_value=0, value=selected_doc.get("assists"), format="%d", key=f"update_football_assists_{selected_doc_id}")
@@ -736,13 +738,16 @@ elif st.session_state.page == 'admin_panel':
                             try:
                                 update_data = {
                                     "name": updated_name,
-                                    "sport": updated_sport, 
+                                    # REMOVED: "sport": updated_sport, # No longer updated from here
                                     "age": updated_age,
                                     "height": updated_height,
                                 }
 
-                                # Clear all sport-specific stats before adding the new ones for the selected sport
-                                # This ensures old stats from a different sport are removed if the sport changes
+                                # Ensure old sport-specific stats are removed if the sport was changed
+                                # (even though the sport itself is not updatable via this panel)
+                                # This ensures data consistency if a record was added with a sport,
+                                # and later needs its non-sport specific details updated.
+                                # The sport itself is not changed here, but we ensure old data is cleared.
                                 update_data["total_runs"] = firestore.DELETE_FIELD
                                 update_data["total_wickets"] = firestore.DELETE_FIELD
                                 update_data["points_per_game"] = firestore.DELETE_FIELD
@@ -751,17 +756,17 @@ elif st.session_state.page == 'admin_panel':
                                 update_data["goals_saved"] = firestore.DELETE_FIELD 
                                 update_data["assists"] = firestore.DELETE_FIELD # Ensures 'assists' is removed
 
-                                if updated_sport == "Cricket":
+                                if current_sport_of_selected_doc == "Cricket": # Use original sport for conditional updates
                                     if updated_total_runs is not None: 
                                         update_data["total_runs"] = updated_total_runs
                                     if updated_total_wickets is not None: 
                                         update_data["total_wickets"] = updated_total_wickets
-                                elif updated_sport == "NBA":
+                                elif current_sport_of_selected_doc == "NBA": # Use original sport for conditional updates
                                     if updated_points_per_game is not None:
                                         update_data["points_per_game"] = updated_points_per_game
                                     if updated_position: 
                                         update_data["position"] = updated_position 
-                                elif updated_sport == "Football":
+                                elif current_sport_of_selected_doc == "Football": # Use original sport for conditional updates
                                     if updated_goals is not None:
                                         update_data["goals_scored"] = updated_goals
                                     if updated_goals_saved is not None: 
