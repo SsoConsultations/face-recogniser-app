@@ -273,7 +273,7 @@ if st.session_state.page == 'home':
         st.warning("Logo image 'sso_logo.jpg' not found. Please ensure it's in the same directory.")
         st.markdown("## SSO Consultants")
 
-    st.markdown("<h3 style='margin-bottom: 0px;'>SSO Consultants Face Recogniser 🕵️‍♂️</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 style='margin-bottom: 0px;'>SSO Consultants Face Recogniser</h3>", unsafe_allow_html=True)
     st.markdown("<p style='margin-top: 5px; margin-bottom: 20px; font-size:1.1em;'>Please choose your login type.</p>", unsafe_allow_html=True)
 
     col1_btn, col2_btn = st.columns([0.2, 0.2])
@@ -603,7 +603,7 @@ elif st.session_state.page == 'admin_panel':
                             load_known_faces_from_firebase.clear()
                             known_face_encodings, known_face_names, known_face_details, known_face_docs = load_known_faces_from_firebase(_=np.random.rand())
                             
-                            st.success(f"Successfully added '{new_face_name}' ({new_face_sport}) to the known faces database! ✅")
+                            st.success(f"Successfully added '{new_face_name}' ({new_face_sport}) to the known faces database!")
                             st.balloons()
                             st.rerun()
 
@@ -837,7 +837,7 @@ elif st.session_state.page == 'admin_panel':
                                 load_known_faces_from_firebase.clear()
                                 known_face_encodings, known_face_names, known_face_details, known_face_docs = load_known_faces_from_firebase(_=np.random.rand())
                                 
-                                st.success(f"Successfully updated '{updated_name}'! ✅")
+                                st.success(f"Successfully updated '{updated_name}'!")
                                 st.rerun()
 
                             except Exception as e:
@@ -875,7 +875,7 @@ elif st.session_state.page == 'admin_panel':
                                         load_known_faces_from_firebase.clear()
                                         known_face_encodings, known_face_names, known_face_details, known_face_docs = load_known_faces_from_firebase(_=np.random.rand())
 
-                                        st.success(f"Successfully deleted '{selected_doc.get('name', 'Unnamed')}'! 🗑️")
+                                        st.success(f"Successfully deleted '{selected_doc.get('name', 'Unnamed')}'!")
                                         st.rerun()
 
                                     except Exception as e:
