@@ -46,8 +46,19 @@ def load_known_faces_from_firebase(_=None):
             encoding_list = face_data.get("encoding")
             age = face_data.get("age")
             height = face_data.get("height")
-            total_runs = face_data.get("total_runs") # New field
-            total_wickets = face_data.get("total_wickets") # New field
+            total_runs = face_data.get("total_runs") # Existing field for Cricket
+            total_wickets = face_data.get("total_wickets") # Existing field for Cricket
+            
+            # NBA specific fields
+            points_per_game = face_data.get("points_per_game")
+            position = face_data.get("position") 
+            
+            # Football specific fields
+            goals_scored = face_data.get("goals_scored")
+            goals_saved = face_data.get("goals_saved") 
+            # REMOVED: assists = face_data.get("assists")
+
+            sport = face_data.get("sport") 
             image_storage_path = face_data.get("image_storage_path")
             
             if name and encoding_list:
@@ -58,8 +69,14 @@ def load_known_faces_from_firebase(_=None):
                     "name": name,
                     "age": age,
                     "height": height,
-                    "total_runs": total_runs, # New field
-                    "total_wickets": total_wickets, # New field
+                    "total_runs": total_runs, 
+                    "total_wickets": total_wickets,
+                    "points_per_game": points_per_game, # NBA
+                    "position": position, # NBA
+                    "goals_scored": goals_scored, # Football
+                    "goals_saved": goals_saved, # Football
+                    # REMOVED: "assists": assists, # Football
+                    "sport": sport, 
                     "image_storage_path": image_storage_path
                 })
                 known_face_docs_local.append({"id": doc.id, **face_data})
@@ -93,7 +110,14 @@ def process_frame_for_faces(frame_rgb, known_encodings, known_names, known_detai
 
     for (top, right, bottom, left), face_encoding in zip(face_locations, face_encodings):
         name_on_image = "Unknown"
-        current_face_details = {"name": "Unknown", "age": "N/A", "height": "N/A", "total_runs": "N/A", "total_wickets": "N/A"} # Updated
+        # Updated current_face_details to include 'sport' and other relevant N/A defaults
+        current_face_details = {
+            "name": "Unknown", "age": "N/A", "height": "N/A", 
+            "total_runs": "N/A", "total_wickets": "N/A", 
+            "points_per_game": "N/A", "position": "N/A", 
+            "goals_scored": "N/A", "goals_saved": "N/A", # REMOVED: "assists": "N/A", 
+            "sport": "N/A"
+        } 
         
         if known_encodings:
             matches = face_recognition.compare_faces(known_encodings, face_encoding)
@@ -106,25 +130,64 @@ def process_frame_for_faces(frame_rgb, known_encodings, known_names, known_detai
                 name = matched_person_details.get("name", "N/A")
                 age = matched_person_details.get("age", "N/A")
                 height = matched_person_details.get("height", "N/A")
-                total_runs = matched_person_details.get("total_runs", "N/A") # New
-                total_wickets = matched_person_details.get("total_wickets", "N/A") # New
+                total_runs = matched_person_details.get("total_runs", "N/A") 
+                total_wickets = matched_person_details.get("total_wickets", "N/A") 
+                
+                points_per_game = matched_person_details.get("points_per_game", "N/A")
+                position = matched_person_details.get("position", "N/A") 
+                
+                goals_scored = matched_person_details.get("goals_scored", "N/A")
+                goals_saved = matched_person_details.get("goals_saved", "N/A") 
+                # REMOVED: assists = matched_person_details.get("assists", "N/A")
+
+                sport = matched_person_details.get("sport", "N/A") 
                 
                 name_on_image = f"Name: {name}"
-                current_face_details = {"name": name, "age": age, "height": height, "total_runs": total_runs, "total_wickets": total_wickets} # Updated
+                # Updated current_face_details
+                current_face_details = {
+                    "name": name, "age": age, "height": height, 
+                    "total_runs": total_runs, "total_wickets": total_wickets, 
+                    "points_per_game": points_per_game, "position": position, 
+                    "goals_scored": goals_scored, "goals_saved": goals_saved, # REMOVED: "assists": assists, 
+                    "sport": sport
+                } 
             else:
                 if face_distances[best_match_index] < 0.6:
                     matched_person_details = known_details[best_match_index]
                     name = matched_person_details.get("name", "N/A")
                     age = matched_person_details.get("age", "N/A")
                     height = matched_person_details.get("height", "N/A")
-                    total_runs = matched_person_details.get("total_runs", "N/A") # New
-                    total_wickets = matched_person_details.get("total_wickets", "N/A") # New
+                    total_runs = matched_person_details.get("total_runs", "N/A") 
+                    total_wickets = matched_person_details.get("total_wickets", "N/A") 
+                    
+                    points_per_game = matched_person_details.get("points_per_game", "N/A")
+                    position = matched_person_details.get("position", "N/A") 
+                    
+                    goals_scored = matched_person_details.get("goals_scored", "N/A")
+                    goals_saved = matched_person_details.get("goals_saved", "N/A") 
+                    # REMOVED: assists = matched_person_details.get("assists", "N/A")
+
+                    sport = matched_person_details.get("sport", "N/A") 
                     
                     name_on_image = f"Possibly {name}"
-                    current_face_details = {"name": f"Possibly {name}", "age": age, "height": height, "total_runs": total_runs, "total_wickets": total_wickets} # Updated
+                    # Updated current_face_details
+                    current_face_details = {
+                        "name": f"Possibly {name}", "age": age, "height": height, 
+                        "total_runs": total_runs, "total_wickets": total_wickets, 
+                        "points_per_game": points_per_game, "position": position, 
+                        "goals_scored": goals_scored, "goals_saved": goals_saved, # REMOVED: "assists": assists, 
+                        "sport": sport
+                    } 
                 else:
                     name_on_image = "Unknown"
-                    current_face_details = {"name": "Unknown", "age": "N/A", "height": "N/A", "total_runs": "N/A", "total_wickets": "N/A"} # Updated
+                    # Updated current_face_details
+                    current_face_details = {
+                        "name": "Unknown", "age": "N/A", "height": "N/A", 
+                        "total_runs": "N/A", "total_wickets": "N/A", 
+                        "points_per_game": "N/A", "position": "N/A", 
+                        "goals_scored": "N/A", "goals_saved": "N/A", # REMOVED: "assists": "N/A", 
+                        "sport": "N/A"
+                    } 
         
         detected_face_info.append(current_face_details)
 
@@ -287,14 +350,30 @@ elif st.session_state.page == 'user_recognition':
         if st.session_state.detected_faces_sidebar_info:
             for i, face_detail in enumerate(st.session_state.detected_faces_sidebar_info):
                 st.markdown(f"### Name: **{face_detail.get('name', 'Unknown')}**")
+                if face_detail.get('sport') != "N/A": 
+                    st.write(f"**Sport:** {face_detail.get('sport', 'N/A')}")
                 if face_detail.get('age') != "N/A":
                     st.write(f"**Age:** {face_detail.get('age', 'N/A')}")
                 if face_detail.get('height') != "N/A":
                     st.write(f"**Height:** {face_detail.get('height', 'N/A')}")
-                if face_detail.get('total_runs') is not None and face_detail.get('total_runs') != "N/A": # New
-                    st.write(f"**Total Runs:** {face_detail.get('total_runs')}") # New
-                if face_detail.get('total_wickets') is not None and face_detail.get('total_wickets') != "N/A": # New
-                    st.write(f"**Total Wickets:** {face_detail.get('total_wickets')}") # New
+                # Conditional display for sport-specific stats
+                if face_detail.get('sport') == "Cricket": 
+                    if face_detail.get('total_runs') is not None and face_detail.get('total_runs') != "N/A": 
+                        st.write(f"**Total Runs:** {face_detail.get('total_runs')}") 
+                    if face_detail.get('total_wickets') is not None and face_detail.get('total_wickets') != "N/A": 
+                        st.write(f"**Total Wickets:** {face_detail.get('total_wickets')}") 
+                elif face_detail.get('sport') == "NBA": 
+                    if face_detail.get('points_per_game') is not None and face_detail.get('points_per_game') != "N/A":
+                        st.write(f"**Points Per Game:** {face_detail.get('points_per_game')}")
+                    if face_detail.get('position') is not None and face_detail.get('position') != "N/A": 
+                        st.write(f"**Position:** {face_detail.get('position')}")
+                elif face_detail.get('sport') == "Football":
+                    if face_detail.get('goals_scored') is not None and face_detail.get('goals_scored') != "N/A":
+                        st.write(f"**Goals Scored:** {face_detail.get('goals_scored')}")
+                    if face_detail.get('goals_saved') is not None and face_detail.get('goals_saved') != "N/A": 
+                        st.write(f"**Goals Saved:** {face_detail.get('goals_saved')}") 
+                    # REMOVED: if face_detail.get('assists') is not None and face_detail.get('assists') != "N/A":
+                    # REMOVED:     st.write(f"**Assists:** {face_detail.get('assists')}")
         else:
             st.info("No faces detected or recognized yet.")
 
@@ -426,19 +505,45 @@ elif st.session_state.page == 'admin_panel':
         st.markdown("Upload an image of a person and provide a name and details for recognition.")
 
         new_face_name = st.text_input("Enter Name/Description for the Face:", key="new_face_name_input")
+        
+        # NEW: Sport Selection
+        SPORTS_OPTIONS = ["", "Cricket", "NBA", "Football", "Other"] 
+        new_face_sport = st.selectbox("Select Sport:", options=SPORTS_OPTIONS, key="new_face_sport_select")
+
         new_face_age = st.number_input("Enter Age:", min_value=0, max_value=150, value=None, format="%d", key="new_face_age_input")
         new_face_height = st.text_input("Enter Height (e.g., 5'10\" or 178cm):", key="new_face_height_input")
         
-        # New input fields for cricketer stats
-        new_face_total_runs = st.number_input("Total Runs:", min_value=0, value=None, format="%d", key="new_face_total_runs_input")
-        new_face_total_wickets = st.number_input("Total Wickets:", min_value=0, value=None, format="%d", key="new_face_total_wickets_input")
-        
+        # Conditional input fields based on selected sport
+        if new_face_sport == "Cricket":
+            new_face_total_runs = st.number_input("Total Runs:", min_value=0, value=None, format="%d", key="new_face_total_runs_input")
+            new_face_total_wickets = st.number_input("Total Wickets:", min_value=0, value=None, format="%d", key="new_face_total_wickets_input")
+        elif new_face_sport == "NBA":
+            new_face_points_per_game = st.number_input("Points Per Game (PPG):", min_value=0.0, value=None, format="%.1f", key="new_face_nba_ppg")
+            new_face_position = st.text_input("Position (e.g., Guard, Forward, Center):", key="new_face_nba_position") 
+        elif new_face_sport == "Football":
+            # Football specific fields
+            new_face_goals = st.number_input("Goals Scored:", min_value=0, value=None, format="%d", key="new_face_football_goals")
+            new_face_goals_saved = st.number_input("Goals Saved:", min_value=0, value=None, format="%d", key="new_face_football_goals_saved") 
+            # REMOVED: new_face_assists = st.number_input("Assists:", min_value=0, value=None, format="%d", key="new_face_football_assists")
+        else: # For "Other" or no sport selected, or if you want common stats
+            new_face_total_runs = None 
+            new_face_total_wickets = None
+            new_face_points_per_game = None
+            new_face_position = None 
+            new_face_goals = None
+            new_face_goals_saved = None 
+            # REMOVED: new_face_assists = None
+
         new_face_image = st.file_uploader("Upload Image of New Face:",
                                             type=["jpg", "jpeg", "png"],
                                             key="new_face_image_uploader")
 
         if st.button("Add Face to Database", key="add_face_btn"):
             if new_face_name and new_face_image:
+                if new_face_sport == "": 
+                    st.warning("Please select a sport for the new face.")
+                    st.stop() 
+                
                 with st.spinner(f"Adding '{new_face_name}' to Firebase..."):
                     try:
                         img = Image.open(new_face_image).convert("RGB")
@@ -466,23 +571,39 @@ elif st.session_state.page == 'admin_panel':
                                 "name": new_face_name,
                                 "encoding": face_encoding_list,
                                 "image_storage_path": storage_path,
+                                "sport": new_face_sport, 
                                 "timestamp": firestore.SERVER_TIMESTAMP
                             }
                             if new_face_age is not None:
                                 doc_data["age"] = new_face_age
                             if new_face_height:
                                 doc_data["height"] = new_face_height
-                            if new_face_total_runs is not None: # Add total_runs
-                                doc_data["total_runs"] = new_face_total_runs
-                            if new_face_total_wickets is not None: # Add total_wickets
-                                doc_data["total_wickets"] = new_face_total_wickets
+                            
+                            # Conditionally add sport-specific stats
+                            if new_face_sport == "Cricket":
+                                if new_face_total_runs is not None: 
+                                    doc_data["total_runs"] = new_face_total_runs
+                                if new_face_total_wickets is not None: 
+                                    doc_data["total_wickets"] = new_face_total_wickets
+                            elif new_face_sport == "NBA":
+                                if new_face_points_per_game is not None:
+                                    doc_data["points_per_game"] = new_face_points_per_game
+                                if new_face_position: 
+                                    doc_data["position"] = new_face_position 
+                            elif new_face_sport == "Football":
+                                if new_face_goals is not None:
+                                    doc_data["goals_scored"] = new_face_goals
+                                if new_face_goals_saved is not None: 
+                                    doc_data["goals_saved"] = new_face_goals_saved 
+                                # REMOVED: if new_face_assists is not None:
+                                # REMOVED:     doc_data["assists"] = new_face_assists
 
                             doc_ref.set(doc_data)
 
                             load_known_faces_from_firebase.clear()
                             known_face_encodings, known_face_names, known_face_details, known_face_docs = load_known_faces_from_firebase(_=np.random.rand())
                             
-                            st.success(f"Successfully added '{new_face_name}' to the known faces database! ✅")
+                            st.success(f"Successfully added '{new_face_name}' ({new_face_sport}) to the known faces database! ✅")
                             st.balloons()
                             st.rerun()
 
@@ -493,7 +614,7 @@ elif st.session_state.page == 'admin_panel':
                         st.error(f"Error adding face to Firebase: {e}. "
                                     "Check Firebase security rules and network connection.")
             else:
-                st.warning("Please provide both a name and upload an image.")
+                st.warning("Please provide a name, select a sport, and upload an image.")
 
     # --- View/Update Database Section ---
     elif admin_option == "View/Update Database":
@@ -506,28 +627,44 @@ elif st.session_state.page == 'admin_panel':
             import pandas as pd
             display_data = []
             for doc in known_face_docs:
-                display_data.append({
+                # Prepare a dictionary for each document with all potential fields
+                row = {
                     "Name": doc.get("name", "N/A"),
+                    "Sport": doc.get("sport", "N/A"), 
                     "Age": doc.get("age", "N/A"),
                     "Height": doc.get("height", "N/A"),
-                    "Total Runs": doc.get("total_runs", "N/A"), # New column
-                    "Total Wickets": doc.get("total_wickets", "N/A"), # New column
-                })
+                    "Total Runs": doc.get("total_runs", "N/A"), 
+                    "Total Wickets": doc.get("total_wickets", "N/A"), 
+                    "Points Per Game (NBA)": doc.get("points_per_game", "N/A"), 
+                    "Position (NBA)": doc.get("position", "N/A"), 
+                    "Goals (Football)": doc.get("goals_scored", "N/A"), 
+                    "Goals Saved (Football)": doc.get("goals_saved", "N/A"), 
+                    # REMOVED: "Assists (Football)": doc.get("assists", "N/A"), 
+                }
+                display_data.append(row)
+            
             df = pd.DataFrame(display_data)
 
-            df["Age"] = df["Age"].astype(str) # Convert to string for display if "N/A" is possible
-            df["Total Runs"] = df["Total Runs"].astype(str) # Convert to string
-            df["Total Wickets"] = df["Total Wickets"].astype(str) # Convert to string
+            # Convert numeric columns to string for consistent "N/A" display
+            for col in ["Age", "Total Runs", "Total Wickets", "Points Per Game (NBA)", "Goals (Football)", "Goals Saved (Football)"]: # REMOVED: "Assists (Football)"
+                if col in df.columns:
+                    df[col] = df[col].astype(str) 
 
             st.dataframe(
                 df,
                 use_container_width=True,
                 column_config={
-                    "Age": st.column_config.TextColumn("Age", width="small"),
                     "Name": st.column_config.TextColumn("Name", width="large"),
+                    "Sport": st.column_config.TextColumn("Sport", width="small"), 
+                    "Age": st.column_config.TextColumn("Age", width="small"),
                     "Height": st.column_config.TextColumn("Height", width="small"),
-                    "Total Runs": st.column_config.TextColumn("Total Runs", width="small"), # Configure new column
-                    "Total Wickets": st.column_config.TextColumn("Total Wickets", width="small"), # Configure new column
+                    "Total Runs": st.column_config.TextColumn("Total Runs", width="small"), 
+                    "Total Wickets": st.column_config.TextColumn("Total Wickets", width="small"), 
+                    "Points Per Game (NBA)": st.column_config.TextColumn("PPG", width="small"), 
+                    "Position (NBA)": st.column_config.TextColumn("Position", width="small"), 
+                    "Goals (Football)": st.column_config.TextColumn("Goals", width="small"),
+                    "Goals Saved (Football)": st.column_config.TextColumn("Goals Saved", width="small"), 
+                    # REMOVED: "Assists (Football)": st.column_config.TextColumn("Assists", width="small"),
                 }
             )
 
@@ -535,7 +672,7 @@ elif st.session_state.page == 'admin_panel':
             st.subheader("Update Existing Face Details")
             st.markdown("Select a face from the dropdown to update its information.")
 
-            name_to_id_map = {f"{doc.get('name', 'Unnamed')} (ID: {doc['id'][:6]}...)": doc["id"] for doc in known_face_docs}
+            name_to_id_map = {f"{doc.get('name', 'Unnamed')} ({doc.get('sport', 'N/A')}) (ID: {doc['id'][:6]}...)": doc["id"] for doc in known_face_docs}
             
             selected_face_label = st.selectbox(
                 "Select a person to update:",
@@ -547,7 +684,7 @@ elif st.session_state.page == 'admin_panel':
                 selected_doc_id = name_to_id_map[selected_face_label]
                 selected_doc = next(doc for doc in known_face_docs if doc["id"] == selected_doc_id)
 
-                st.write(f"**Currently updating:** {selected_doc.get('name', 'Unnamed')}")
+                st.write(f"**Currently updating:** {selected_doc.get('name', 'Unnamed')} ({selected_doc.get('sport', 'N/A')})") 
 
                 if selected_doc.get("image_storage_path"):
                     try:
@@ -558,13 +695,35 @@ elif st.session_state.page == 'admin_panel':
                         st.warning(f"Could not load image from storage: {e}")
 
                 updated_name = st.text_input("New Name:", value=selected_doc.get("name", ""), key=f"update_name_{selected_doc_id}")
+                
+                # NEW: Update Sport Selection
+                current_sport_index = SPORTS_OPTIONS.index(selected_doc.get("sport", "")) if selected_doc.get("sport") in SPORTS_OPTIONS else 0
+                updated_sport = st.selectbox("New Sport:", options=SPORTS_OPTIONS, index=current_sport_index, key=f"update_sport_{selected_doc_id}")
+
                 updated_age = st.number_input("New Age:", min_value=0, max_value=150, value=selected_doc.get("age"), format="%d", key=f"update_age_{selected_doc_id}")
                 updated_height = st.text_input("New Height:", value=selected_doc.get("height", ""), key=f"update_height_{selected_doc_id}")
                 
-                # New input fields for updating cricketer stats
-                updated_total_runs = st.number_input("New Total Runs:", min_value=0, value=selected_doc.get("total_runs"), format="%d", key=f"update_total_runs_{selected_doc_id}")
-                updated_total_wickets = st.number_input("New Total Wickets:", min_value=0, value=selected_doc.get("total_wickets"), format="%d", key=f"update_total_wickets_{selected_doc_id}")
-                
+                # Conditional input fields for updating sport-specific stats
+                updated_total_runs = None
+                updated_total_wickets = None
+                updated_points_per_game = None
+                updated_position = None 
+                updated_goals = None
+                updated_goals_saved = None 
+                # REMOVED: updated_assists = None
+
+                if updated_sport == "Cricket":
+                    updated_total_runs = st.number_input("New Total Runs:", min_value=0, value=selected_doc.get("total_runs"), format="%d", key=f"update_total_runs_{selected_doc_id}")
+                    updated_total_wickets = st.number_input("New Total Wickets:", min_value=0, value=selected_doc.get("total_wickets"), format="%d", key=f"update_total_wickets_{selected_doc_id}")
+                elif updated_sport == "NBA":
+                    updated_points_per_game = st.number_input("New Points Per Game (PPG):", min_value=0.0, value=selected_doc.get("points_per_game"), format="%.1f", key=f"update_nba_ppg_{selected_doc_id}")
+                    updated_position = st.text_input("New Position:", value=selected_doc.get("position", ""), key=f"update_nba_position_{selected_doc_id}") 
+                elif updated_sport == "Football":
+                    updated_goals = st.number_input("New Goals Scored:", min_value=0, value=selected_doc.get("goals_scored"), format="%d", key=f"update_football_goals_{selected_doc_id}")
+                    updated_goals_saved = st.number_input("New Goals Saved:", min_value=0, value=selected_doc.get("goals_saved"), format="%d", key=f"update_football_goals_saved_{selected_doc_id}") 
+                    # REMOVED: updated_assists = st.number_input("New Assists:", min_value=0, value=selected_doc.get("assists"), format="%d", key=f"update_football_assists_{selected_doc_id}")
+
+
                 re_upload_image = st.file_uploader("Re-upload Image (optional, will replace current image):",
                                                     type=["jpg", "jpeg", "png"],
                                                     key=f"re_upload_image_{selected_doc_id}")
@@ -577,11 +736,39 @@ elif st.session_state.page == 'admin_panel':
                             try:
                                 update_data = {
                                     "name": updated_name,
+                                    "sport": updated_sport, 
                                     "age": updated_age,
                                     "height": updated_height,
-                                    "total_runs": updated_total_runs, # Update total_runs
-                                    "total_wickets": updated_total_wickets, # Update total_wickets
                                 }
+
+                                # Clear all sport-specific stats before adding the new ones for the selected sport
+                                # This ensures old stats from a different sport are removed if the sport changes
+                                update_data["total_runs"] = firestore.DELETE_FIELD
+                                update_data["total_wickets"] = firestore.DELETE_FIELD
+                                update_data["points_per_game"] = firestore.DELETE_FIELD
+                                update_data["position"] = firestore.DELETE_FIELD 
+                                update_data["goals_scored"] = firestore.DELETE_FIELD
+                                update_data["goals_saved"] = firestore.DELETE_FIELD 
+                                update_data["assists"] = firestore.DELETE_FIELD # Ensures 'assists' is removed
+
+                                if updated_sport == "Cricket":
+                                    if updated_total_runs is not None: 
+                                        update_data["total_runs"] = updated_total_runs
+                                    if updated_total_wickets is not None: 
+                                        update_data["total_wickets"] = updated_total_wickets
+                                elif updated_sport == "NBA":
+                                    if updated_points_per_game is not None:
+                                        update_data["points_per_game"] = updated_points_per_game
+                                    if updated_position: 
+                                        update_data["position"] = updated_position 
+                                elif updated_sport == "Football":
+                                    if updated_goals is not None:
+                                        update_data["goals_scored"] = updated_goals
+                                    if updated_goals_saved is not None: 
+                                        update_data["goals_saved"] = updated_goals_saved 
+                                    # REMOVED: if updated_assists is not None:
+                                    # REMOVED:     update_data["assists"] = updated_assists
+
 
                                 new_encoding = None
                                 new_storage_path = selected_doc.get("image_storage_path")
