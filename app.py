@@ -692,7 +692,7 @@ elif st.session_state.page == 'admin_panel':
                 selected_face_label = None # Ensure no player is selected if filter results in empty list
             else:
                 name_to_id_map_filtered = {
-                    f"{doc.get('name', 'Unnamed')} (ID: {doc['id'][:6]}...)": doc["id"]
+                    f"{doc.get('name', 'Unnamed')}": doc["id"]
                     for doc in filtered_docs
                 }
                 
