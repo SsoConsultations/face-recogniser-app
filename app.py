@@ -685,7 +685,6 @@ elif st.session_state.page == 'admin_panel':
                 selected_doc = next(doc for doc in known_face_docs if doc["id"] == selected_doc_id)
 
                 st.write(f"**Currently updating:** {selected_doc.get('name', 'Unnamed')}")
-                st.info(f"**Sport:** {selected_doc.get('sport', 'N/A')}") # Display current sport, but not allow update
 
                 if selected_doc.get("image_storage_path"):
                     try:
